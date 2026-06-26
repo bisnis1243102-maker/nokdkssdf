@@ -59,6 +59,7 @@ struct GardenSceneView: UIViewRepresentable {
         weak var scnView: SCNView?
         private let scene = SCNScene()
         private var plotNodes: [Int: SCNNode] = [:]
+        private let gardenRoot = SCNNode()
         private var sunNode: SCNNode?
         private var ambientNode: SCNNode?
         private var weatherNode: SCNNode?
@@ -71,29 +72,42 @@ struct GardenSceneView: UIViewRepresentable {
         func buildScene() -> SCNScene {
             scene.background.contents = UIColor(red: 0.53, green: 0.77, blue: 0.92, alpha: 1)
 
-            // Ground
-            let ground = SCNFloor()
-            ground.reflectivity = 0
-            ground.firstMaterial?.diffuse.contents = UIColor(red: 0.38, green: 0.62, blue: 0.34, alpha: 1)
-            let groundNode = SCNNode(geometry: ground)
-            scene.rootNode.addChildNode(groundNode)
+            // Everything that should slowly spin (so the 3D depth is obvious) lives here.
+            scene.rootNode.addChildNode(gardenRoot)
+
+            // A thick 3D ground slab with visible edges (reads clearly as 3D).
+            let groundBox = SCNBox(width: 8, height: 0.6, length: 11, chamferRadius: 0.2)
+            groundBox.firstMaterial?.diffuse.contents = UIColor(red: 0.36, green: 0.60, blue: 0.32, alpha: 1)
+            let groundNode = SCNNode(geometry: groundBox)
+            groundNode.position.y = -0.3
+            gardenRoot.addChildNode(groundNode)
+
+            // Soil border under the slab for extra depth.
+            let dirt = SCNBox(width: 8.2, height: 0.5, length: 11.2, chamferRadius: 0.1)
+            dirt.firstMaterial?.diffuse.contents = UIColor(red: 0.34, green: 0.24, blue: 0.16, alpha: 1)
+            let dirtNode = SCNNode(geometry: dirt)
+            dirtNode.position.y = -0.75
+            gardenRoot.addChildNode(dirtNode)
 
             // Plots (all built once; locked ones hidden)
             for i in 0..<GardenModel.maxPlots {
                 let plot = makePlotNode(index: i)
                 plotNodes[i] = plot
-                scene.rootNode.addChildNode(plot)
+                gardenRoot.addChildNode(plot)
             }
 
-            // Camera
+            // Gentle continuous turntable spin — makes the 3D unmistakable.
+            gardenRoot.runAction(.repeatForever(
+                .rotateBy(x: 0, y: CGFloat.pi * 2, z: 0, duration: 55)))
+
+            // Camera — a strongly oblique 3/4 view.
             let camera = SCNCamera()
-            camera.fieldOfView = 55
+            camera.fieldOfView = 52
             camera.zFar = 200
             let camNode = SCNNode()
             camNode.camera = camera
-            camNode.position = SCNVector3(0, 9.5, 12)
-            // Pitch down toward the garden centre; the orbit controller refines from here.
-            camNode.eulerAngles = SCNVector3(-0.67, 0, 0)
+            camNode.position = SCNVector3(0, 6.5, 12.5)
+            camNode.eulerAngles = SCNVector3(-0.47, 0, 0)
             scene.rootNode.addChildNode(camNode)
 
             // Lights
@@ -304,7 +318,7 @@ struct GardenSceneView: UIViewRepresentable {
             burst.geometry?.firstMaterial?.emission.contents = UIColor(red: r, green: g, blue: b, alpha: 1)
             burst.position = plot.position
             burst.position.y = 0.6
-            scene.rootNode.addChildNode(burst)
+            gardenRoot.addChildNode(burst)
             let grow = SCNAction.scale(to: mutation == .normal ? 2 : 3.5, duration: 0.45)
             let fade = SCNAction.fadeOut(duration: 0.45)
             burst.runAction(.sequence([.group([grow, fade]), .removeFromParentNode()]))

@@ -1,7 +1,7 @@
-# Grow a Garden 3D — iPhone Farming / Idle Game
+# Garden Empire — 3D iPhone Farming / Idle Game
 
-A native iOS farming-idle game inspired by the Roblox hit **Grow a Garden**, now
-rendered in **3D with SceneKit**. Built with **SwiftUI + SceneKit**, no
+A native iOS farming-idle game inspired by the Roblox hit **Grow a Garden**,
+rendered in **3D with SceneKit**. (Home-screen name: **Garden Empire**.) Built with **SwiftUI + SceneKit**, no
 third-party dependencies. Orbit your garden, plant seeds, watch crops grow in
 real time (even while the app is closed), harvest for **Sheckles** 🪙, chase rare
 **mutations**, ride the **weather**, and grow an automated farming empire.
