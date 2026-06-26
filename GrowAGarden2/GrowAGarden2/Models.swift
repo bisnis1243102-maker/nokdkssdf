@@ -151,6 +151,28 @@ enum Weather: String, CaseIterable {
     }
 }
 
+// MARK: - Fruit size
+
+/// Each planted fruit rolls a random size. Bigger fruit grows slower but sells
+/// for more; smaller fruit grows faster but sells for less. The factor scales
+/// both grow time and value.
+enum FruitSize {
+    static let minFactor = 0.65
+    static let maxFactor = 1.60
+
+    static func roll() -> Double { Double.random(in: minFactor...maxFactor) }
+
+    static func name(_ f: Double) -> String {
+        switch f {
+        case ..<0.80: return "Tiny"
+        case ..<0.96: return "Small"
+        case ..<1.14: return "Medium"
+        case ..<1.38: return "Large"
+        default:      return "Giant"
+        }
+    }
+}
+
 // MARK: - Upgrades
 
 enum UpgradeKind {
@@ -194,6 +216,7 @@ struct PlotSave: Codable {
     var cropID: String?
     var plantedAt: Date?
     var fertilized: Bool = false
+    var sizeFactor: Double = 1.0
 }
 
 struct HarvestStack: Codable, Identifiable {
@@ -202,9 +225,11 @@ struct HarvestStack: Codable, Identifiable {
     var mutation: Mutation
     var count: Int
     var unitValue: Int
+    var sizeFactor: Double = 1.0
 
     var totalValue: Int { count * unitValue }
     var crop: Crop { CropCatalog.crop(cropID) }
+    var sizeName: String { FruitSize.name(sizeFactor) }
 }
 
 struct GardenSave: Codable {

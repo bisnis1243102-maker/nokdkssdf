@@ -8,6 +8,7 @@ final class GardenModel: ObservableObject {
         var cropID: String?
         var plantedAt: Date?
         var fertilized: Bool = false
+        var sizeFactor: Double = 1.0
     }
 
     // MARK: Published state
@@ -31,7 +32,7 @@ final class GardenModel: ObservableObject {
 
     static let maxPlots = 24
     static let maxSprinkler = 10
-    private let saveKey = "growagarden2.save.v2"
+    private let saveKey = "growagarden2.save.v3"
     private var timer: Timer?
 
     init() {
@@ -47,22 +48,28 @@ final class GardenModel: ObservableObject {
 
     // MARK: Growth helpers
 
+    /// Base grow time including the sprinkler upgrade (size-independent).
     func effectiveGrow(_ crop: Crop) -> Double {
         crop.growSeconds * pow(0.92, Double(sprinklerLevel))
     }
 
+    /// Grow time for a specific plot: bigger fruit (higher sizeFactor) is slower.
+    func growSeconds(for plot: Plot) -> Double {
+        guard let cropID = plot.cropID else { return 0 }
+        return effectiveGrow(CropCatalog.crop(cropID)) * plot.sizeFactor
+    }
+
     func progress(of plot: Plot) -> Double {
-        guard let cropID = plot.cropID, let planted = plot.plantedAt else { return 0 }
-        let grow = effectiveGrow(CropCatalog.crop(cropID))
-        return min(1.0, now.timeIntervalSince(planted) / grow)
+        guard plot.cropID != nil, let planted = plot.plantedAt else { return 0 }
+        let grow = growSeconds(for: plot)
+        return grow > 0 ? min(1.0, now.timeIntervalSince(planted) / grow) : 0
     }
 
     func isReady(_ plot: Plot) -> Bool { plot.cropID != nil && progress(of: plot) >= 1.0 }
 
     func secondsLeft(of plot: Plot) -> Int {
-        guard let cropID = plot.cropID, let planted = plot.plantedAt else { return 0 }
-        let grow = effectiveGrow(CropCatalog.crop(cropID))
-        return max(0, Int(grow - now.timeIntervalSince(planted)))
+        guard plot.cropID != nil, let planted = plot.plantedAt else { return 0 }
+        return max(0, Int(growSeconds(for: plot) - now.timeIntervalSince(planted)))
     }
 
     var readyCount: Int { plots.prefix(unlockedPlots).filter { isReady($0) }.count }
@@ -96,6 +103,7 @@ final class GardenModel: ObservableObject {
         plots[idx].cropID = crop.id
         plots[idx].plantedAt = Date()
         plots[idx].fertilized = fertilized
+        plots[idx].sizeFactor = FruitSize.roll()
         save()
     }
 
@@ -106,12 +114,14 @@ final class GardenModel: ObservableObject {
         guard let idx = plots.firstIndex(where: { $0.id == plotID }),
               let cropID = plots[idx].cropID, isReady(plots[idx]) else { return false }
         let crop = CropCatalog.crop(cropID)
+        let size = plots[idx].sizeFactor
         let mutation = Weather.current.rollMutation(fertilized: plots[idx].fertilized)
-        let value = crop.baseValue * mutation.multiplier
-        addToBackpack(cropID: cropID, mutation: mutation, value: value)
+        let value = max(1, Int((Double(crop.baseValue) * Double(mutation.multiplier) * size).rounded()))
+        addToBackpack(cropID: cropID, mutation: mutation, value: value, size: size)
         plots[idx].cropID = nil
         plots[idx].plantedAt = nil
         plots[idx].fertilized = false
+        plots[idx].sizeFactor = 1.0
         if animated { lastHarvest = (plotID, mutation) }
         save()
         return true
@@ -125,11 +135,16 @@ final class GardenModel: ObservableObject {
         if any && !animated { objectWillChange.send() }
     }
 
-    private func addToBackpack(cropID: String, mutation: Mutation, value: Int) {
-        if let i = backpack.firstIndex(where: { $0.cropID == cropID && $0.mutation == mutation }) {
+    private func addToBackpack(cropID: String, mutation: Mutation, value: Int, size: Double) {
+        // Stack identical crop + mutation + size-tier together.
+        let tier = FruitSize.name(size)
+        if let i = backpack.firstIndex(where: {
+            $0.cropID == cropID && $0.mutation == mutation && $0.sizeName == tier
+        }) {
             backpack[i].count += 1
         } else {
-            backpack.append(HarvestStack(cropID: cropID, mutation: mutation, count: 1, unitValue: value))
+            backpack.append(HarvestStack(cropID: cropID, mutation: mutation,
+                                         count: 1, unitValue: value, sizeFactor: size))
         }
     }
 
@@ -210,7 +225,7 @@ final class GardenModel: ObservableObject {
             money: money,
             seeds: seeds,
             unlockedPlots: unlockedPlots,
-            plots: plots.map { PlotSave(cropID: $0.cropID, plantedAt: $0.plantedAt, fertilized: $0.fertilized) },
+            plots: plots.map { PlotSave(cropID: $0.cropID, plantedAt: $0.plantedAt, fertilized: $0.fertilized, sizeFactor: $0.sizeFactor) },
             backpack: backpack,
             lifetimeEarned: lifetimeEarned,
             sprinklerLevel: sprinklerLevel,
@@ -238,7 +253,7 @@ final class GardenModel: ObservableObject {
         autoHarvestEnabled = s.autoHarvestEnabled
         plots = (0..<Self.maxPlots).map { i in
             if i < s.plots.count {
-                return Plot(id: i, cropID: s.plots[i].cropID, plantedAt: s.plots[i].plantedAt, fertilized: s.plots[i].fertilized)
+                return Plot(id: i, cropID: s.plots[i].cropID, plantedAt: s.plots[i].plantedAt, fertilized: s.plots[i].fertilized, sizeFactor: s.plots[i].sizeFactor)
             }
             return Plot(id: i, cropID: nil, plantedAt: nil)
         }

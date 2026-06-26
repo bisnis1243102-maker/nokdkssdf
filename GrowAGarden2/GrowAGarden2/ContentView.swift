@@ -207,7 +207,7 @@ private struct PlantPickerView: View {
                                         Text(crop.emoji).font(.title2)
                                         VStack(alignment: .leading) {
                                             Text(crop.name).font(.headline)
-                                            Text("Grows in \(Format.time(Int(game.effectiveGrow(crop))))")
+                                            Text("~\(Format.time(Int(game.effectiveGrow(crop)))) · size varies (bigger = slower & worth more)")
                                                 .font(.caption).foregroundColor(.secondary)
                                         }
                                         Spacer()
@@ -401,7 +401,7 @@ private struct BackpackView: View {
                                                 .foregroundColor(stack.mutation.tint)
                                         }
                                     }
-                                    Text("×\(stack.count) · 🪙\(Format.money(stack.unitValue)) each")
+                                    Text("\(stack.sizeName) · ×\(stack.count) · 🪙\(Format.money(stack.unitValue)) each")
                                         .font(.caption).foregroundColor(.secondary)
                                 }
                                 Spacer()

@@ -148,9 +148,10 @@ struct GardenSceneView: UIViewRepresentable {
             return node
         }
 
-        private func makeCropNode(cropID: String, fertilized: Bool) -> SCNNode {
+        private func makeCropNode(cropID: String, fertilized: Bool, sizeFactor: Double) -> SCNNode {
             let group = SCNNode()
             group.name = "crop"
+            let sf = Float(sizeFactor)
 
             let stem = SCNCylinder(radius: 0.04, height: 0.34)
             stem.firstMaterial?.diffuse.contents = UIColor(red: 0.25, green: 0.55, blue: 0.25, alpha: 1)
@@ -166,7 +167,9 @@ struct GardenSceneView: UIViewRepresentable {
             fruit.materials = [mat]
             let fruitNode = SCNNode(geometry: fruit)
             fruitNode.name = "fruit"
-            fruitNode.position.y = 0.45
+            // Bigger fruit literally renders bigger; lift it so larger fruit clears the stem.
+            fruitNode.scale = SCNVector3(sf, sf, sf)
+            fruitNode.position.y = 0.42 + 0.12 * sf
             group.addChildNode(fruitNode)
 
             // Two leaves
@@ -211,6 +214,7 @@ struct GardenSceneView: UIViewRepresentable {
 
             guard let cropID = plot.cropID else {
                 existing?.removeFromParentNode()
+                plotNode.childNode(withName: "timer", recursively: false)?.removeFromParentNode()
                 return
             }
 
@@ -218,7 +222,7 @@ struct GardenSceneView: UIViewRepresentable {
             if let existing = existing {
                 crop = existing
             } else {
-                crop = makeCropNode(cropID: cropID, fertilized: plot.fertilized)
+                crop = makeCropNode(cropID: cropID, fertilized: plot.fertilized, sizeFactor: plot.sizeFactor)
                 crop.position.y = 0.18
                 plotNode.addChildNode(crop)
             }
@@ -231,6 +235,7 @@ struct GardenSceneView: UIViewRepresentable {
             SCNTransaction.commit()
 
             let ready = game.isReady(plot)
+            updateTimerLabel(on: plotNode, ready: ready, secondsLeft: game.secondsLeft(of: plot))
             if let fruit = crop.childNode(withName: "fruit", recursively: true) {
                 fruit.geometry?.firstMaterial?.emission.contents =
                     ready ? UIColor(white: 0.6, alpha: 1) : UIColor.black
@@ -244,6 +249,40 @@ struct GardenSceneView: UIViewRepresentable {
                 crop.removeAction(forKey: "bob")
                 crop.position.y = 0.18
             }
+        }
+
+        /// Floating countdown above a plot. Billboarded so it always faces the camera.
+        private func updateTimerLabel(on plotNode: SCNNode, ready: Bool, secondsLeft: Int) {
+            let label: SCNNode
+            if let existing = plotNode.childNode(withName: "timer", recursively: false) {
+                label = existing
+            } else {
+                let text = SCNText(string: "", extrusionDepth: 0.2)
+                text.font = UIFont.systemFont(ofSize: 7, weight: .heavy)
+                text.flatness = 0.25
+                let m = SCNMaterial()
+                m.lightingModel = .constant   // always readable regardless of lighting
+                text.materials = [m]
+                label = SCNNode(geometry: text)
+                label.name = "timer"
+                label.scale = SCNVector3(0.07, 0.07, 0.07)
+                label.position = SCNVector3(0, 1.15, 0)
+                label.constraints = [SCNBillboardConstraint()]
+                plotNode.addChildNode(label)
+            }
+
+            guard let text = label.geometry as? SCNText else { return }
+            let newString = ready ? "READY ✓" : Format.time(secondsLeft)
+            if (text.string as? String) != newString {
+                text.string = newString
+                // Re-center horizontally now that the bounds changed.
+                let (minB, maxB) = label.boundingBox
+                label.pivot = SCNMatrix4MakeTranslation((minB.x + maxB.x) / 2,
+                                                        (minB.y + maxB.y) / 2, 0)
+            }
+            text.firstMaterial?.diffuse.contents = ready
+                ? UIColor(red: 1, green: 0.95, blue: 0.4, alpha: 1)
+                : UIColor.white
         }
 
         // MARK: Environment (day/night + weather)
