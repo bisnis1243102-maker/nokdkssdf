@@ -134,12 +134,14 @@ enum Weather: String, CaseIterable {
         }
     }
 
-    /// Rolls a mutation for a harvested crop, biased by weather and fertilizer.
-    func rollMutation(fertilized: Bool) -> Mutation {
+    /// Rolls a mutation for a harvested crop, biased by weather, fertilizer and
+    /// fruit size (bigger fruit rolls rarer mutations more often).
+    func rollMutation(fertilized: Bool, sizeFactor: Double) -> Mutation {
         let r = Double.random(in: 0..<1)
         let windLuck = self == .windy ? 1.6 : 1.0
         let fertLuck = fertilized ? 6.0 : 1.0
-        let luck = windLuck * fertLuck
+        let sizeLuck = max(0.5, sizeFactor)   // bigger fruit = luckier
+        let luck = windLuck * fertLuck * sizeLuck
         if r < 0.01 * luck { return .rainbow }
         if r < 0.05 * luck { return .gold }
         switch self {

@@ -115,7 +115,7 @@ final class GardenModel: ObservableObject {
               let cropID = plots[idx].cropID, isReady(plots[idx]) else { return false }
         let crop = CropCatalog.crop(cropID)
         let size = plots[idx].sizeFactor
-        let mutation = Weather.current.rollMutation(fertilized: plots[idx].fertilized)
+        let mutation = Weather.current.rollMutation(fertilized: plots[idx].fertilized, sizeFactor: size)
         let value = max(1, Int((Double(crop.baseValue) * Double(mutation.multiplier) * size).rounded()))
         addToBackpack(cropID: cropID, mutation: mutation, value: value, size: size)
         plots[idx].cropID = nil

@@ -9,6 +9,9 @@ on:
       - claude/mobile-gaming-app-roblox-3f27o5
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-14
@@ -63,3 +66,25 @@ jobs:
           name: ${{ matrix.name }}-unsigned-ipa
           path: ${{ matrix.name }}-unsigned.ipa
           if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all IPA artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ipas
+
+      - name: Publish/refresh the "latest" GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest unsigned builds
+          body: |
+            Unsigned `.ipa` builds, refreshed on every push.
+            Tap a file below to download directly (no zip), then sign with KSign.
+          files: ipas/**/*.ipa
+          fail_on_unmatched_files: true
