@@ -45,7 +45,7 @@ struct ContentView: View {
                         .font(.system(size: 14, weight: .black, design: .rounded))
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Capsule().fill(Color.green))
-                    Text("Garden Empire")
+                    Text("Bloom Tycoon")
                         .font(.system(size: 16, weight: .heavy, design: .rounded))
                 }
                 levelBar.frame(width: 150, height: 5)

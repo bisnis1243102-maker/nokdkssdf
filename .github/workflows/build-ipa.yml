@@ -22,7 +22,7 @@ jobs:
           - name: Rivals
             project: Rivals/Rivals.xcodeproj
             scheme: Rivals
-          - name: GardenEmpire
+          - name: BloomTycoon
             project: GrowAGarden2/GrowAGarden2.xcodeproj
             scheme: GrowAGarden2
     steps:
