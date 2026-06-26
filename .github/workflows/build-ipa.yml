@@ -1,0 +1,66 @@
+name: Build IPA (unsigned)
+
+# Produces an UNSIGNED Rivals.ipa as a downloadable artifact.
+# Sign it on-device afterwards with KSign / your preferred sideloading tool.
+
+on:
+  push:
+    branches:
+      - claude/mobile-gaming-app-roblox-3f27o5
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build app (no code signing)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Rivals/Rivals.xcodeproj \
+            -scheme Rivals \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            clean build | xcpretty || \
+          xcodebuild \
+            -project Rivals/Rivals.xcodeproj \
+            -scheme Rivals \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Package into .ipa
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/Rivals.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: $APP_PATH not found"; find build -name '*.app' -maxdepth 5 -type d; exit 1
+          fi
+          rm -rf Payload Rivals-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry Rivals-unsigned.ipa Payload
+          echo "Built IPA:"; ls -lh Rivals-unsigned.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rivals-unsigned-ipa
+          path: Rivals-unsigned.ipa
+          if-no-files-found: error
