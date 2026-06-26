@@ -24,10 +24,30 @@ enum CropCatalog {
         Crop(id: "mango",      name: "Mango",       emoji: "🥭", seedCost: 21000,  growSeconds: 1200, baseValue: 52000),
         Crop(id: "dragon",     name: "Dragon Fruit",emoji: "🐲", seedCost: 60000,  growSeconds: 1800, baseValue: 160000),
         Crop(id: "goldapple",  name: "Golden Apple",emoji: "🍎", seedCost: 175000, growSeconds: 2700, baseValue: 520000),
+        Crop(id: "starfruit",  name: "Starfruit",   emoji: "⭐️", seedCost: 500000, growSeconds: 3600, baseValue: 1600000),
     ]
 
     static func crop(_ id: String) -> Crop {
         all.first { $0.id == id } ?? all[0]
+    }
+
+    /// RGB used to tint the 3D fruit for this crop.
+    static func rgb(_ id: String) -> (r: CGFloat, g: CGFloat, b: CGFloat) {
+        switch id {
+        case "carrot":     return (0.95, 0.52, 0.16)
+        case "strawberry": return (0.92, 0.20, 0.28)
+        case "blueberry":  return (0.27, 0.40, 0.85)
+        case "tomato":     return (0.91, 0.28, 0.20)
+        case "corn":       return (0.97, 0.83, 0.27)
+        case "pepper":     return (0.86, 0.18, 0.16)
+        case "watermelon": return (0.30, 0.62, 0.30)
+        case "pumpkin":    return (0.95, 0.55, 0.16)
+        case "mango":      return (0.98, 0.70, 0.18)
+        case "dragon":     return (0.86, 0.24, 0.55)
+        case "goldapple":  return (0.96, 0.78, 0.22)
+        case "starfruit":  return (0.85, 0.90, 0.30)
+        default:           return (0.6, 0.8, 0.4)
+        }
     }
 }
 
@@ -114,26 +134,66 @@ enum Weather: String, CaseIterable {
         }
     }
 
-    /// Rolls a mutation for a freshly harvested crop, biased by weather.
-    func rollMutation() -> Mutation {
+    /// Rolls a mutation for a harvested crop, biased by weather and fertilizer.
+    func rollMutation(fertilized: Bool) -> Mutation {
         let r = Double.random(in: 0..<1)
-        let luck = self == .windy ? 1.6 : 1.0
+        let windLuck = self == .windy ? 1.6 : 1.0
+        let fertLuck = fertilized ? 6.0 : 1.0
+        let luck = windLuck * fertLuck
         if r < 0.01 * luck { return .rainbow }
         if r < 0.05 * luck { return .gold }
         switch self {
-        case .rainy: if r < 0.40 { return .wet }
-        case .snowy: if r < 0.35 { return .frozen }
+        case .rainy: if r < (fertilized ? 0.60 : 0.40) { return .wet }
+        case .snowy: if r < (fertilized ? 0.55 : 0.35) { return .frozen }
         default: break
         }
         return .normal
     }
 }
 
-// MARK: - Persistence
+// MARK: - Upgrades
+
+enum UpgradeKind {
+    case sprinkler
+    case fertilizer
+    case autoHarvester
+}
+
+// MARK: - Player level
+
+enum Level {
+    /// Sheckles needed to reach each successive level (cumulative thresholds grow ~2.2x).
+    static func level(forEarned earned: Int) -> Int {
+        var lvl = 1
+        var need = 100.0
+        var total = 0.0
+        while Double(earned) >= total + need {
+            total += need
+            need *= 2.2
+            lvl += 1
+        }
+        return lvl
+    }
+
+    static func progress(forEarned earned: Int) -> (current: Int, into: Int, needed: Int) {
+        var lvl = 1
+        var need = 100.0
+        var total = 0.0
+        while Double(earned) >= total + need {
+            total += need
+            need *= 2.2
+            lvl += 1
+        }
+        return (lvl, earned - Int(total), Int(need))
+    }
+}
+
+// MARK: - Persistence (v2)
 
 struct PlotSave: Codable {
     var cropID: String?
     var plantedAt: Date?
+    var fertilized: Bool = false
 }
 
 struct HarvestStack: Codable, Identifiable {
@@ -154,4 +214,8 @@ struct GardenSave: Codable {
     var plots: [PlotSave]
     var backpack: [HarvestStack]
     var lifetimeEarned: Int
+    var sprinklerLevel: Int = 0
+    var fertilizer: Int = 0
+    var autoHarvesterUnlocked: Bool = false
+    var autoHarvestEnabled: Bool = false
 }

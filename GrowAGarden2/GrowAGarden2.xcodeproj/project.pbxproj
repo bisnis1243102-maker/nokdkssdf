@@ -12,6 +12,7 @@
 		3B0000000000000000000003 /* GardenModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0000000000000000000003 /* GardenModel.swift */; };
 		3B0000000000000000000004 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0000000000000000000004 /* Models.swift */; };
 		3B0000000000000000000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B0000000000000000000005 /* Assets.xcassets */; };
+		3B0000000000000000000006 /* GardenSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0000000000000000000006 /* GardenSceneView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +20,7 @@
 		2B0000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2B0000000000000000000003 /* GardenModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GardenModel.swift; sourceTree = "<group>"; };
 		2B0000000000000000000004 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		2B0000000000000000000006 /* GardenSceneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GardenSceneView.swift; sourceTree = "<group>"; };
 		2B0000000000000000000005 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1B000000000000000000000F /* GrowAGarden2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GrowAGarden2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -49,6 +51,7 @@
 				2B0000000000000000000002 /* ContentView.swift */,
 				2B0000000000000000000003 /* GardenModel.swift */,
 				2B0000000000000000000004 /* Models.swift */,
+				2B0000000000000000000006 /* GardenSceneView.swift */,
 				2B0000000000000000000005 /* Assets.xcassets */,
 			);
 			path = GrowAGarden2;
@@ -132,6 +135,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3B0000000000000000000004 /* Models.swift in Sources */,
+				3B0000000000000000000006 /* GardenSceneView.swift in Sources */,
 				3B0000000000000000000003 /* GardenModel.swift in Sources */,
 				3B0000000000000000000002 /* ContentView.swift in Sources */,
 				3B0000000000000000000001 /* GrowAGarden2App.swift in Sources */,
