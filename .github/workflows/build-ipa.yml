@@ -1,7 +1,7 @@
 name: Build IPA (unsigned)
 
-# Produces an UNSIGNED Rivals.ipa as a downloadable artifact.
-# Sign it on-device afterwards with KSign / your preferred sideloading tool.
+# Produces UNSIGNED .ipa artifacts for each app in the repo.
+# Sign them on-device afterwards with KSign / your preferred sideloading tool.
 
 on:
   push:
@@ -12,6 +12,16 @@ on:
 jobs:
   build:
     runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Rivals
+            project: Rivals/Rivals.xcodeproj
+            scheme: Rivals
+          - name: GrowAGarden2
+            project: GrowAGarden2/GrowAGarden2.xcodeproj
+            scheme: GrowAGarden2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,12 +29,12 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Build app (no code signing)
+      - name: Build ${{ matrix.name }} (no code signing)
         run: |
           set -o pipefail
           xcodebuild \
-            -project Rivals/Rivals.xcodeproj \
-            -scheme Rivals \
+            -project "${{ matrix.project }}" \
+            -scheme "${{ matrix.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
@@ -33,34 +43,23 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
-            clean build | xcpretty || \
-          xcodebuild \
-            -project Rivals/Rivals.xcodeproj \
-            -scheme Rivals \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
             clean build
 
-      - name: Package into .ipa
+      - name: Package ${{ matrix.name }} into .ipa
         run: |
-          APP_PATH="build/Build/Products/Release-iphoneos/Rivals.app"
+          APP_PATH="build/Build/Products/Release-iphoneos/${{ matrix.scheme }}.app"
           if [ ! -d "$APP_PATH" ]; then
             echo "ERROR: $APP_PATH not found"; find build -name '*.app' -maxdepth 5 -type d; exit 1
           fi
-          rm -rf Payload Rivals-unsigned.ipa
+          rm -rf Payload "${{ matrix.name }}-unsigned.ipa"
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          zip -qry Rivals-unsigned.ipa Payload
-          echo "Built IPA:"; ls -lh Rivals-unsigned.ipa
+          zip -qry "${{ matrix.name }}-unsigned.ipa" Payload
+          echo "Built IPA:"; ls -lh "${{ matrix.name }}-unsigned.ipa"
 
-      - name: Upload IPA artifact
+      - name: Upload ${{ matrix.name }} IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Rivals-unsigned-ipa
-          path: Rivals-unsigned.ipa
+          name: ${{ matrix.name }}-unsigned-ipa
+          path: ${{ matrix.name }}-unsigned.ipa
           if-no-files-found: error
