@@ -25,6 +25,9 @@ jobs:
           - name: BloomTycoon
             project: GrowAGarden2/GrowAGarden2.xcodeproj
             scheme: GrowAGarden2
+          - name: Billiard
+            project: Billiard/Billiard.xcodeproj
+            scheme: Billiard
           - name: ForsaHorizon
             project: LibertyDrive/LibertyDrive.xcodeproj
             scheme: LibertyDrive
