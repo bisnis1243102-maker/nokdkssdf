@@ -226,8 +226,14 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
     // MARK: - Aiming & shooting
 
+    private var allBalls: [SKShapeNode] {
+        var a = balls
+        if let c = cueBall { a.append(c) }
+        return a
+    }
+
     private var ballsMoving: Bool {
-        for b in balls + [cueBall] where b.parent != nil {
+        for b in allBalls where b.parent != nil {
             if let v = b.physicsBody?.velocity, hypot(v.dx, v.dy) > 6 { return true }
         }
         return false
@@ -272,7 +278,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     // MARK: - Pocketing
 
     override func update(_ currentTime: TimeInterval) {
-        for ball in balls + [cueBall] where ball.parent != nil {
+        for ball in allBalls where ball.parent != nil {
             for pocket in pockets where hypot(ball.position.x - pocket.x, ball.position.y - pocket.y) < pocketRadius * 0.8 {
                 pot(ball)
                 break
