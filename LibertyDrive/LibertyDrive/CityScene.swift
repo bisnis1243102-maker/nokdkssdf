@@ -40,6 +40,13 @@ struct CityScene: UIViewRepresentable {
         private var heading: Float = .pi
         private var speed: Float = 0
         private let carY: Float = 0.55
+        private var playerPaint: SCNMaterial?
+
+        // Wanted system
+        private var wanted: Float = 0          // 0...5
+        private var bustTimer: Float = 0
+        private var crashCooldown: Float = 0
+        private var minPoliceDist: Float = 9999
 
         private var buildings: [(Float, Float, Float, Float)] = []
 
@@ -52,6 +59,7 @@ struct CityScene: UIViewRepresentable {
             let dir: Float         // +1 or -1
             let baseSpeed: Float
             var curSpeed: Float
+            let color: UIColor
         }
         private var traffic: [Traffic] = []
 
@@ -311,7 +319,7 @@ struct CityScene: UIViewRepresentable {
 
         // MARK: Cars
 
-        private func makeCarBody(paint: UIColor, detailed: Bool) -> (SCNNode, [SCNNode], SCNNode, SCNNode) {
+        private func makeCarBody(paint: UIColor, detailed: Bool) -> (SCNNode, SCNNode, SCNNode, SCNMaterial) {
             let car = SCNNode()
 
             let body = SCNBox(width: 2.0, height: 0.6, length: 4.3, chamferRadius: 0.25)
@@ -391,15 +399,16 @@ struct CityScene: UIViewRepresentable {
             }
             let fl = pivots.first ?? SCNNode()
             let fr = pivots.count > 1 ? pivots[1] : SCNNode()
-            return (car, pivots, fl, fr)
+            return (car, fl, fr, pm)
         }
 
         private func buildCar() {
-            let (car, _, fl, fr) = makeCarBody(paint: UIColor(red: 0.85, green: 0.13, blue: 0.16, alpha: 1), detailed: true)
+            let (car, fl, fr, mat) = makeCarBody(paint: UIColor(red: 0.85, green: 0.13, blue: 0.16, alpha: 1), detailed: true)
             carNode.addChildNode(car)
             carNode.position = SCNVector3(carX, carY, carZ)
             frontLeftPivot = fl
             frontRightPivot = fr
+            playerPaint = mat
         }
 
         private func spawnTraffic() {
@@ -410,7 +419,8 @@ struct CityScene: UIViewRepresentable {
                           UIColor(red: 0.2, green: 0.6, blue: 0.3, alpha: 1)]
             let lanes: [Float] = stride(from: Float(-180), through: 180, by: 45).map { $0 }
             for i in 0..<14 {
-                let (car, _, _, _) = makeCarBody(paint: colors[i % colors.count], detailed: false)
+                let color = colors[i % colors.count]
+                let (car, _, _, _) = makeCarBody(paint: color, detailed: false)
                 let axis = i % 2
                 let lane = lanes[Int.random(in: 0..<lanes.count)] + (Bool.random() ? 4 : -4)
                 let pos = Float.random(in: -World.half...World.half)
@@ -420,7 +430,7 @@ struct CityScene: UIViewRepresentable {
                 car.eulerAngles.y = axis == 0 ? (dir > 0 ? .pi / 2 : -.pi / 2) : (dir > 0 ? 0 : .pi)
                 scene.rootNode.addChildNode(car)
                 traffic.append(Traffic(node: car, axis: axis, pos: pos, fixed: lane,
-                                       dir: dir, baseSpeed: base, curSpeed: base))
+                                       dir: dir, baseSpeed: base, curSpeed: base, color: color))
             }
             spawnPolice()
         }
@@ -499,23 +509,32 @@ struct CityScene: UIViewRepresentable {
             }
         }
 
-        /// Police cars actively pursue the player, avoiding buildings, with
-        /// alternating red/blue flashing lights.
+        /// Police pursue only when the player is wanted; otherwise they cruise
+        /// slowly and their lights are off. Tracks the nearest cop for busts.
         private func updatePolice(dt: Float, playerX: Float, playerZ: Float, time: Float) {
             let flashRed = sinf(time * 9) > 0
+            let chasing = wanted >= 1
+            var nearest: Float = 9999
             for i in police.indices {
                 var p = police[i]
                 let dx = playerX - p.x, dz = playerZ - p.z
                 let dist = max(0.001, sqrtf(dx * dx + dz * dz))
+                nearest = min(nearest, dist)
 
-                // Steer toward the player.
-                let targetHeading = atan2f(dx, dz)
+                let targetHeading: Float
+                let spd: Float
+                if chasing {
+                    targetHeading = atan2f(dx, dz)             // seek the player
+                    spd = dist < 8 ? 5 : 24
+                } else {
+                    targetHeading = p.heading + 0.3            // gentle patrol wander
+                    spd = 8
+                }
                 var diff = targetHeading - p.heading
                 while diff > .pi { diff -= 2 * .pi }
                 while diff < -.pi { diff += 2 * .pi }
                 p.heading += max(-2.4 * dt, min(2.4 * dt, diff))
 
-                let spd: Float = dist < 8 ? 5 : 24
                 let fxn = sinf(p.heading), fzn = cosf(p.heading)
                 var nx = p.x + fxn * spd * dt
                 var nz = p.z + fzn * spd * dt
@@ -534,11 +553,70 @@ struct CityScene: UIViewRepresentable {
                 p.x = nx; p.z = nz
                 p.node.position = SCNVector3(nx, carY, nz)
                 p.node.eulerAngles.y = p.heading
-                p.red.geometry?.firstMaterial?.emission.contents =
-                    flashRed ? UIColor.red : UIColor(red: 0.25, green: 0, blue: 0, alpha: 1)
-                p.blue.geometry?.firstMaterial?.emission.contents =
-                    flashRed ? UIColor(red: 0, green: 0, blue: 0.25, alpha: 1) : UIColor.blue
+
+                let off = UIColor(white: 0.05, alpha: 1)
+                if chasing {
+                    p.red.geometry?.firstMaterial?.emission.contents =
+                        flashRed ? UIColor.red : UIColor(red: 0.25, green: 0, blue: 0, alpha: 1)
+                    p.blue.geometry?.firstMaterial?.emission.contents =
+                        flashRed ? UIColor(red: 0, green: 0, blue: 0.25, alpha: 1) : UIColor.blue
+                } else {
+                    p.red.geometry?.firstMaterial?.emission.contents = off
+                    p.blue.geometry?.firstMaterial?.emission.contents = off
+                }
                 police[i] = p
+            }
+            minPoliceDist = nearest
+        }
+
+        /// Carjack: take over the nearest civilian car within reach.
+        private func attemptSteal() {
+            guard let idx = traffic.indices.min(by: { a, b in
+                let pa = traffic[a], pb = traffic[b]
+                let ax: Float = pa.axis == 0 ? pa.pos : pa.fixed
+                let az: Float = pa.axis == 0 ? pa.fixed : pa.pos
+                let bx: Float = pb.axis == 0 ? pb.pos : pb.fixed
+                let bz: Float = pb.axis == 0 ? pb.fixed : pb.pos
+                let da = (ax - carX) * (ax - carX) + (az - carZ) * (az - carZ)
+                let db = (bx - carX) * (bx - carX) + (bz - carZ) * (bz - carZ)
+                return da < db
+            }) else { return }
+            let t = traffic[idx]
+            let tx: Float = t.axis == 0 ? t.pos : t.fixed
+            let tz: Float = t.axis == 0 ? t.fixed : t.pos
+            let d = sqrtf((tx - carX) * (tx - carX) + (tz - carZ) * (tz - carZ))
+            guard d < 14 else { return }      // must be close enough
+            // Repaint our car to the stolen one's colour and remove that car.
+            playerPaint?.diffuse.contents = t.color
+            t.node.removeFromParentNode()
+            traffic.remove(at: idx)
+            // Stealing a car is a crime.
+            wanted = min(5, max(wanted, 1) + 1.5)
+        }
+
+        /// Wanted-level decay, escaping, and busts.
+        private func updateWanted(dt: Float) {
+            guard wanted > 0 else { bustTimer = 0; return }
+            // Decay: much faster once you've shaken the nearest cop.
+            let escaping = minPoliceDist > 55
+            wanted = max(0, wanted - (escaping ? 0.35 : 0.05) * dt)
+
+            // Bust: a cop pins you (very close) while you're nearly stopped.
+            if minPoliceDist < 4.2 && abs(speed) < 3 {
+                bustTimer += dt
+            } else {
+                bustTimer = max(0, bustTimer - dt * 0.5)
+            }
+            if bustTimer > 2.5 {
+                bustTimer = 0
+                wanted = 0
+                speed = 0
+                let m = parent.model
+                DispatchQueue.main.async {
+                    m.busted = true
+                    m.stars = 0
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { m.busted = false }
+                }
             }
         }
 
@@ -568,12 +646,17 @@ struct CityScene: UIViewRepresentable {
             frontLeftPivot.eulerAngles.y = m.steer * 0.5
             frontRightPivot.eulerAngles.y = m.steer * 0.5
 
+            // Carjack request from the on-screen button.
+            if m.stealRequested { m.stealRequested = false; attemptSteal() }
+
             let fx = sinf(heading), fz = cosf(heading)
             var nx = carX + fx * speed * dt
             var nz = carZ + fz * speed * dt
             let lim = World.half - 3
             nx = min(lim, max(-lim, nx)); nz = min(lim, max(-lim, nz))
 
+            let preSpeed = abs(speed)
+            var crashed = false
             let rad: Float = 2.3
             for b in buildings {
                 let ex = b.2 + rad, ez = b.3 + rad
@@ -582,17 +665,26 @@ struct CityScene: UIViewRepresentable {
                     if ex - abs(dx) < ez - abs(dz) { nx = b.0 + (dx < 0 ? -ex : ex) }
                     else { nz = b.1 + (dz < 0 ? -ez : ez) }
                     speed *= 0.25
+                    crashed = true
                 }
             }
+
+            // Crime: crashing hard, or sustained speeding, raises the wanted level.
+            crashCooldown = max(0, crashCooldown - dt)
+            if crashed && preSpeed > 12 && crashCooldown <= 0 {
+                wanted = min(5, wanted + 0.8); crashCooldown = 1.0
+            }
+            if abs(speed) > 30 { wanted = min(5, wanted + 0.25 * dt) }
 
             distance += abs(speed) * dt
             carX = nx; carZ = nz
             carNode.position = SCNVector3(nx, carY, nz)
             carNode.eulerAngles.y = heading
 
-            // Smarter traffic + pursuing police
+            // Smarter traffic + pursuing police + wanted bookkeeping
             updateTraffic(dt: dt, playerX: nx, playerZ: nz)
             updatePolice(dt: dt, playerX: nx, playerZ: nz, time: Float(time))
+            updateWanted(dt: dt)
 
             // Chase camera
             let desired = SCNVector3(nx - fx * 14, 8.5, nz - fz * 14)
@@ -609,9 +701,11 @@ struct CityScene: UIViewRepresentable {
                 hudAccum = 0
                 let kmh = Int(abs(speed) * 7.5), dist = Int(distance)
                 let name = World.name(x: nx, z: nz)
+                let stars = wanted > 0 ? min(5, Int(wanted.rounded(.up))) : 0
                 let hx = nx, hz = nz, hh = heading
                 DispatchQueue.main.async {
                     m.speedKmh = kmh; m.distanceM = dist; m.district = name
+                    m.stars = stars
                     m.carX = hx; m.carZ = hz; m.heading = hh
                 }
             }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @StateObject private var model = DriveModel()
@@ -14,8 +15,20 @@ struct ContentView: View {
                 controls
             }
             .padding()
+
+            if model.busted {
+                ZStack {
+                    Color.black.opacity(0.45).ignoresSafeArea()
+                    Text("BUSTED")
+                        .font(.system(size: 64, weight: .black, design: .rounded))
+                        .foregroundColor(.red)
+                        .shadow(radius: 8)
+                }
+                .transition(.opacity)
+            }
         }
         .statusBarHidden(true)
+        .animation(.easeInOut, value: model.busted)
     }
 
     // MARK: HUD
@@ -31,6 +44,17 @@ struct ContentView: View {
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(Capsule().fill(.black.opacity(0.3)))
+                if model.stars > 0 {
+                    HStack(spacing: 3) {
+                        ForEach(0..<model.stars, id: \.self) { _ in
+                            Image(systemName: "star.fill")
+                        }
+                    }
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.yellow)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Capsule().fill(.black.opacity(0.3)))
+                }
             }
             .foregroundColor(.white)
 
@@ -70,6 +94,8 @@ struct ContentView: View {
                 }
             }
             Spacer()
+            stealButton
+            Spacer()
             // Throttle / brake
             VStack(spacing: 14) {
                 PedalButton(symbol: "chevron.up", tint: .green, big: true) { down in
@@ -79,6 +105,22 @@ struct ContentView: View {
                     model.throttle = down ? -1 : 0
                 }
             }
+        }
+    }
+
+    private var stealButton: some View {
+        Button {
+            model.stealRequested = true
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        } label: {
+            VStack(spacing: 2) {
+                Image(systemName: "hand.raised.fill").font(.system(size: 20, weight: .bold))
+                Text("STEAL").font(.system(size: 11, weight: .heavy, design: .rounded))
+            }
+            .foregroundColor(.white)
+            .frame(width: 76, height: 76)
+            .background(Circle().fill(Color.orange.opacity(0.85)))
+            .overlay(Circle().stroke(.white.opacity(0.4), lineWidth: 2))
         }
     }
 }
