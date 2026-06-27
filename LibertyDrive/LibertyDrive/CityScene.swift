@@ -44,8 +44,26 @@ struct CityScene: UIViewRepresentable {
         private var buildings: [(Float, Float, Float, Float)] = []
 
         // Traffic
-        private struct Traffic { let node: SCNNode; let axis: Int; var pos: Float; let fixed: Float; let speed: Float }
+        private struct Traffic {
+            let node: SCNNode
+            let axis: Int          // 0 = travels along X, 1 = travels along Z
+            var pos: Float
+            let fixed: Float       // perpendicular lane coordinate
+            let dir: Float         // +1 or -1
+            let baseSpeed: Float
+            var curSpeed: Float
+        }
         private var traffic: [Traffic] = []
+
+        private struct Police {
+            let node: SCNNode
+            var x: Float
+            var z: Float
+            var heading: Float
+            let red: SCNNode
+            let blue: SCNNode
+        }
+        private var police: [Police] = []
 
         private var lastTime: TimeInterval = 0
         private var hudAccum: Float = 0
@@ -391,16 +409,136 @@ struct CityScene: UIViewRepresentable {
                           UIColor(white: 0.15, alpha: 1),
                           UIColor(red: 0.2, green: 0.6, blue: 0.3, alpha: 1)]
             let lanes: [Float] = stride(from: Float(-180), through: 180, by: 45).map { $0 }
-            for i in 0..<12 {
+            for i in 0..<14 {
                 let (car, _, _, _) = makeCarBody(paint: colors[i % colors.count], detailed: false)
                 let axis = i % 2
                 let lane = lanes[Int.random(in: 0..<lanes.count)] + (Bool.random() ? 4 : -4)
                 let pos = Float.random(in: -World.half...World.half)
-                let speed = Float.random(in: 8...16) * (Bool.random() ? 1 : -1)
+                let dir: Float = Bool.random() ? 1 : -1
+                let base = Float.random(in: 9...17)
                 car.position = axis == 0 ? SCNVector3(pos, carY, lane) : SCNVector3(lane, carY, pos)
-                car.eulerAngles.y = axis == 0 ? (speed > 0 ? .pi / 2 : -.pi / 2) : (speed > 0 ? 0 : .pi)
+                car.eulerAngles.y = axis == 0 ? (dir > 0 ? .pi / 2 : -.pi / 2) : (dir > 0 ? 0 : .pi)
                 scene.rootNode.addChildNode(car)
-                traffic.append(Traffic(node: car, axis: axis, pos: pos, fixed: lane, speed: speed))
+                traffic.append(Traffic(node: car, axis: axis, pos: pos, fixed: lane,
+                                       dir: dir, baseSpeed: base, curSpeed: base))
+            }
+            spawnPolice()
+        }
+
+        private func makePoliceCar() -> (SCNNode, SCNNode, SCNNode) {
+            let (car, _, _, _) = makeCarBody(paint: UIColor(white: 0.95, alpha: 1), detailed: true)
+            // Black door panels.
+            let stripe = SCNBox(width: 2.06, height: 0.5, length: 1.7, chamferRadius: 0.2)
+            stripe.firstMaterial?.diffuse.contents = UIColor(white: 0.08, alpha: 1)
+            let sn = SCNNode(geometry: stripe)
+            sn.position = SCNVector3(0, 0.42, 0)
+            car.addChildNode(sn)
+            // Roof light bar.
+            let red = SCNBox(width: 0.5, height: 0.18, length: 0.5, chamferRadius: 0.05)
+            let rm = SCNMaterial(); rm.diffuse.contents = UIColor.red; rm.emission.contents = UIColor.red
+            red.materials = [rm]
+            let rn = SCNNode(geometry: red); rn.position = SCNVector3(-0.35, 1.34, -0.1)
+            car.addChildNode(rn)
+            let blue = SCNBox(width: 0.5, height: 0.18, length: 0.5, chamferRadius: 0.05)
+            let bm = SCNMaterial(); bm.diffuse.contents = UIColor.blue; bm.emission.contents = UIColor.blue
+            blue.materials = [bm]
+            let bn = SCNNode(geometry: blue); bn.position = SCNVector3(0.35, 1.34, -0.1)
+            car.addChildNode(bn)
+            return (car, rn, bn)
+        }
+
+        private func spawnPolice() {
+            for _ in 0..<3 {
+                let (car, red, blue) = makePoliceCar()
+                let x = Float.random(in: -World.half...World.half)
+                let z = Float.random(in: -World.half...World.half)
+                car.position = SCNVector3(x, carY, z)
+                scene.rootNode.addChildNode(car)
+                police.append(Police(node: car, x: x, z: z, heading: 0, red: red, blue: blue))
+            }
+        }
+
+        /// Traffic with simple collision-avoidance: cars slow/stop for the player
+        /// and for other cars ahead in their lane, then accelerate back up.
+        private func updateTraffic(dt: Float, playerX: Float, playerZ: Float) {
+            let lookAhead: Float = 17
+            for i in traffic.indices {
+                var c = traffic[i]
+                let bx: Float = c.axis == 0 ? c.pos : c.fixed
+                let bz: Float = c.axis == 0 ? c.fixed : c.pos
+                var target = c.baseSpeed
+
+                // Player ahead?
+                let pAlong: Float = c.axis == 0 ? (playerX - bx) * c.dir : (playerZ - bz) * c.dir
+                let pLat: Float = c.axis == 0 ? (playerZ - bz) : (playerX - bx)
+                if abs(pLat) < 5 && pAlong > 0 && pAlong < lookAhead {
+                    target = min(target, pAlong < 7 ? 0 : c.baseSpeed * 0.3)
+                }
+                // Another car ahead in the same lane?
+                for j in traffic.indices where j != i {
+                    let o = traffic[j]
+                    if o.axis != c.axis || abs(o.fixed - c.fixed) > 3 { continue }
+                    let ox: Float = o.axis == 0 ? o.pos : o.fixed
+                    let oz: Float = o.axis == 0 ? o.fixed : o.pos
+                    let oAlong: Float = c.axis == 0 ? (ox - bx) * c.dir : (oz - bz) * c.dir
+                    let oLat: Float = c.axis == 0 ? (oz - bz) : (ox - bx)
+                    if abs(oLat) < 4 && oAlong > 0 && oAlong < lookAhead {
+                        target = min(target, oAlong < 7 ? 0 : c.baseSpeed * 0.25)
+                    }
+                }
+
+                let accel: Float = target > c.curSpeed ? 8 : 24
+                c.curSpeed += max(-accel * dt, min(accel * dt, target - c.curSpeed))
+                c.pos += c.dir * c.curSpeed * dt
+                if c.pos > World.half { c.pos = -World.half }
+                if c.pos < -World.half { c.pos = World.half }
+                let fx: Float = c.axis == 0 ? c.pos : c.fixed
+                let fz: Float = c.axis == 0 ? c.fixed : c.pos
+                c.node.position = SCNVector3(fx, carY, fz)
+                traffic[i] = c
+            }
+        }
+
+        /// Police cars actively pursue the player, avoiding buildings, with
+        /// alternating red/blue flashing lights.
+        private func updatePolice(dt: Float, playerX: Float, playerZ: Float, time: Float) {
+            let flashRed = sinf(time * 9) > 0
+            for i in police.indices {
+                var p = police[i]
+                let dx = playerX - p.x, dz = playerZ - p.z
+                let dist = max(0.001, sqrtf(dx * dx + dz * dz))
+
+                // Steer toward the player.
+                let targetHeading = atan2f(dx, dz)
+                var diff = targetHeading - p.heading
+                while diff > .pi { diff -= 2 * .pi }
+                while diff < -.pi { diff += 2 * .pi }
+                p.heading += max(-2.4 * dt, min(2.4 * dt, diff))
+
+                let spd: Float = dist < 8 ? 5 : 24
+                let fxn = sinf(p.heading), fzn = cosf(p.heading)
+                var nx = p.x + fxn * spd * dt
+                var nz = p.z + fzn * spd * dt
+                let lim = World.half - 3
+                nx = min(lim, max(-lim, nx)); nz = min(lim, max(-lim, nz))
+
+                let rad: Float = 2.3
+                for b in buildings {
+                    let ex = b.2 + rad, ez = b.3 + rad
+                    let ddx = nx - b.0, ddz = nz - b.1
+                    if abs(ddx) < ex && abs(ddz) < ez {
+                        if ex - abs(ddx) < ez - abs(ddz) { nx = b.0 + (ddx < 0 ? -ex : ex) }
+                        else { nz = b.1 + (ddz < 0 ? -ez : ez) }
+                    }
+                }
+                p.x = nx; p.z = nz
+                p.node.position = SCNVector3(nx, carY, nz)
+                p.node.eulerAngles.y = p.heading
+                p.red.geometry?.firstMaterial?.emission.contents =
+                    flashRed ? UIColor.red : UIColor(red: 0.25, green: 0, blue: 0, alpha: 1)
+                p.blue.geometry?.firstMaterial?.emission.contents =
+                    flashRed ? UIColor(red: 0, green: 0, blue: 0.25, alpha: 1) : UIColor.blue
+                police[i] = p
             }
         }
 
@@ -419,10 +557,12 @@ struct CityScene: UIViewRepresentable {
             speed = min(38, max(-12, speed))
             if abs(speed) < 0.05 { speed = 0 }
 
-            if abs(speed) > 0.3 {
-                let steerRate: Float = 1.7
+            if abs(speed) > 0.15 {
+                let steerRate: Float = 2.8
                 let dir: Float = speed >= 0 ? 1 : -1
-                heading += m.steer * steerRate * dt * dir * min(1, abs(speed) / 9)
+                // More responsive, with a solid base turn-rate even at low speed.
+                let responsiveness = min(1.0, 0.45 + abs(speed) / 11)
+                heading += m.steer * steerRate * dt * dir * responsiveness
             }
             // Visually turn the front wheels.
             frontLeftPivot.eulerAngles.y = m.steer * 0.5
@@ -450,16 +590,9 @@ struct CityScene: UIViewRepresentable {
             carNode.position = SCNVector3(nx, carY, nz)
             carNode.eulerAngles.y = heading
 
-            // Traffic
-            for i in traffic.indices {
-                var c = traffic[i]
-                c.pos += c.speed * dt
-                if c.pos > World.half { c.pos = -World.half }
-                if c.pos < -World.half { c.pos = World.half }
-                c.node.position = c.axis == 0 ? SCNVector3(c.pos, carY, c.fixed)
-                                               : SCNVector3(c.fixed, carY, c.pos)
-                traffic[i] = c
-            }
+            // Smarter traffic + pursuing police
+            updateTraffic(dt: dt, playerX: nx, playerZ: nz)
+            updatePolice(dt: dt, playerX: nx, playerZ: nz, time: Float(time))
 
             // Chase camera
             let desired = SCNVector3(nx - fx * 14, 8.5, nz - fz * 14)
