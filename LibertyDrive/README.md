@@ -1,8 +1,11 @@
-# Liberty Drive — 3D open-world driving sandbox (iPhone)
+# Forsa Horizon — 3D open-world driving sandbox (iPhone)
 
 An original, stylized 3D open-world driving game for iOS, built with
 **SwiftUI + SceneKit**, no third-party dependencies. Drive freely around a city
-of named districts.
+of named districts. (Home-screen name: **Forsa Horizon**.)
+
+> "Forsa Horizon" is an original parody name for personal use and is not
+> affiliated with Forza Horizon or its publisher.
 
 > This is an **original** game inspired by the open-world driving genre — it is
 > **not** GTA and does not use any Rockstar assets, maps, or branding. The
