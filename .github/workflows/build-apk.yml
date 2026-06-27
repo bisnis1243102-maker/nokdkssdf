@@ -33,6 +33,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'   # AGP 8.1.4 is not compatible with Gradle 9.x
 
       - name: Build debug APK
         working-directory: AndroidGame
