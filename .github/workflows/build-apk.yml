@@ -1,0 +1,62 @@
+name: Build APK (Android)
+
+# Builds an installable debug .apk for the Forsa Horizon 6 Android (WebGL) build
+# and attaches it to the "latest" GitHub Release.
+
+on:
+  push:
+    branches:
+      - claude/mobile-gaming-app-roblox-3f27o5
+    paths:
+      - 'AndroidGame/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build debug APK
+        working-directory: AndroidGame
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: |
+          set -e
+          SRC=$(find AndroidGame -path '*/outputs/apk/debug/*.apk' | head -n1)
+          echo "Found: $SRC"
+          cp "$SRC" ForsaHorizon6.apk
+          ls -lh ForsaHorizon6.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForsaHorizon6-apk
+          path: ForsaHorizon6.apk
+          if-no-files-found: error
+
+      - name: Attach APK to the "latest" Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest unsigned builds
+          files: ForsaHorizon6.apk
+          fail_on_unmatched_files: true
