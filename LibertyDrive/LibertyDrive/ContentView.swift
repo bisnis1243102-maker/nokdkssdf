@@ -3,6 +3,7 @@ import UIKit
 
 struct ContentView: View {
     @StateObject private var model = DriveModel()
+    @State private var showGarage = false
 
     var body: some View {
         ZStack {
@@ -35,6 +36,7 @@ struct ContentView: View {
         }
         .statusBarHidden(true)
         .animation(.easeInOut, value: model.raceFinished)
+        .sheet(isPresented: $showGarage) { GarageView(model: model) }
     }
 
     // MARK: HUD
@@ -50,6 +52,22 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Capsule().fill(.ultraThinMaterial))
+                HStack(spacing: 8) {
+                    Text("💰 \(model.credits)")
+                        .font(.caption.weight(.bold))
+                    Button {
+                        showGarage = true
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Label("Garage", systemImage: "car.2.fill")
+                            .font(.caption2.weight(.heavy))
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(Color.indigo))
+                    }
+                }
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Capsule().fill(.black.opacity(0.3)))
+
                 Text("\(model.distanceM) m driven")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10).padding(.vertical, 4)
@@ -212,6 +230,98 @@ private struct MiniMap: View {
                         y: CGFloat((model.carZ + World.half) / (World.half * 2)) * s)
             }
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.7), lineWidth: 2))
+        }
+    }
+}
+
+// MARK: - Garage
+
+private struct GarageView: View {
+    @ObservedObject var model: DriveModel
+    @Environment(\.dismiss) private var dismiss
+
+    private let paints: [(Double, Double, Double)] = [
+        (0.85, 0.13, 0.16), (0.95, 0.55, 0.10), (0.96, 0.82, 0.18),
+        (0.20, 0.75, 0.35), (0.20, 0.55, 0.95), (0.55, 0.25, 0.85),
+        (0.95, 0.35, 0.65), (0.95, 0.95, 0.97), (0.08, 0.09, 0.11)
+    ]
+
+    var body: some View {
+        NavigationView {
+            List {
+                Section("Paint — \(model.selectedSpec.name)") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(0..<paints.count, id: \.self) { i in
+                                let p = paints[i]
+                                Circle()
+                                    .fill(Color(red: p.0, green: p.1, blue: p.2))
+                                    .frame(width: 34, height: 34)
+                                    .overlay(Circle().stroke(.white, lineWidth: 2))
+                                    .onTapGesture { model.setPaint(p.0, p.1, p.2) }
+                            }
+                        }.padding(.vertical, 4)
+                    }
+                }
+                Section("Cars") {
+                    ForEach(CarShop.all) { spec in
+                        carRow(spec)
+                    }
+                }
+            }
+            .navigationTitle("Garage")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) { Text("💰 \(model.credits)").font(.headline) }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func carRow(_ spec: CarSpec) -> some View {
+        let owned = model.ownedCarIDs.contains(spec.id)
+        let selected = model.selectedCarID == spec.id
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(uiColor: spec.baseColor))
+                .frame(width: 46, height: 30)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.5)))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(spec.name).font(.headline)
+                Text(spec.category).font(.caption2).foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    StatBar(label: "SPD", value: spec.topSpeed)
+                    StatBar(label: "ACC", value: spec.accel)
+                    StatBar(label: "HND", value: spec.handling)
+                }
+            }
+            Spacer()
+            if selected {
+                Text("DRIVING").font(.caption.bold()).foregroundColor(.green)
+            } else if owned {
+                Button("Select") { model.selectCar(spec) }
+                    .buttonStyle(.borderedProminent).tint(.blue)
+            } else {
+                Button("💰\(spec.price)") { model.buyCar(spec) }
+                    .buttonStyle(.borderedProminent).tint(.green)
+                    .disabled(model.credits < spec.price)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct StatBar: View {
+    let label: String
+    let value: Float
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(label).font(.system(size: 8, weight: .bold)).foregroundColor(.secondary)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.gray.opacity(0.3)).frame(width: 40, height: 5)
+                Capsule().fill(Color.orange).frame(width: 40 * CGFloat(value), height: 5)
+            }
         }
     }
 }

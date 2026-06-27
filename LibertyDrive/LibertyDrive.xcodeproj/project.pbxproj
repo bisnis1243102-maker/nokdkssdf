@@ -12,6 +12,7 @@
 		3C0000000000000000000003 /* CityScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000003 /* CityScene.swift */; };
 		3C0000000000000000000004 /* DriveModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000004 /* DriveModel.swift */; };
 		3C0000000000000000000005 /* World.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000005 /* World.swift */; };
+		3C0000000000000000000007 /* CarCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000007 /* CarCatalog.swift */; };
 		3C0000000000000000000006 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000006 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -21,6 +22,7 @@
 		2C0000000000000000000003 /* CityScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityScene.swift; sourceTree = "<group>"; };
 		2C0000000000000000000004 /* DriveModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveModel.swift; sourceTree = "<group>"; };
 		2C0000000000000000000005 /* World.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = World.swift; sourceTree = "<group>"; };
+		2C0000000000000000000007 /* CarCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarCatalog.swift; sourceTree = "<group>"; };
 		2C0000000000000000000006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1C000000000000000000000F /* LibertyDrive.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LibertyDrive.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -52,6 +54,7 @@
 				2C0000000000000000000003 /* CityScene.swift */,
 				2C0000000000000000000004 /* DriveModel.swift */,
 				2C0000000000000000000005 /* World.swift */,
+				2C0000000000000000000007 /* CarCatalog.swift */,
 				2C0000000000000000000006 /* Assets.xcassets */,
 			);
 			path = LibertyDrive;
@@ -135,6 +138,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3C0000000000000000000005 /* World.swift in Sources */,
+				3C0000000000000000000007 /* CarCatalog.swift in Sources */,
 				3C0000000000000000000004 /* DriveModel.swift in Sources */,
 				3C0000000000000000000003 /* CityScene.swift in Sources */,
 				3C0000000000000000000002 /* ContentView.swift in Sources */,

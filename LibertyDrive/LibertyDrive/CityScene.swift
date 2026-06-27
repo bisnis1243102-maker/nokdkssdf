@@ -41,6 +41,12 @@ struct CityScene: UIViewRepresentable {
         private let carY: Float = 0.55
         private var driftScore: Float = 0
 
+        // Current car performance (from the selected CarSpec)
+        private var carPower: Float = 30
+        private var carMaxSpeed: Float = 40
+        private var carSteerRate: Float = 2.8
+        private var lastCarVersion = -1
+
         // Lighting + weather
         private var sunNode = SCNNode()
         private var ambientNode = SCNNode()
@@ -549,11 +555,134 @@ struct CityScene: UIViewRepresentable {
         }
 
         private func buildCar() {
-            let (car, fl, fr) = makeCarBody(paint: UIColor(red: 0.85, green: 0.13, blue: 0.16, alpha: 1), detailed: true)
-            carNode.addChildNode(car)
             carNode.position = SCNVector3(carX, carY, carZ)
+            rebuildPlayerCar()
+        }
+
+        /// (Re)builds the player's car from the selected spec + paint and applies
+        /// its performance stats.
+        private func rebuildPlayerCar() {
+            carNode.childNode(withName: "carbody", recursively: false)?.removeFromParentNode()
+            let spec = parent.model.selectedSpec
+            let color = UIColor(red: CGFloat(parent.model.paintR),
+                                green: CGFloat(parent.model.paintG),
+                                blue: CGFloat(parent.model.paintB), alpha: 1)
+            let (car, fl, fr) = makePlayerCar(spec: spec, color: color)
+            car.name = "carbody"
+            carNode.addChildNode(car)
             frontLeftPivot = fl
             frontRightPivot = fr
+            carMaxSpeed = 28 + spec.topSpeed * 26
+            carPower = 22 + spec.accel * 22
+            carSteerRate = 2.3 + spec.handling * 1.4
+            lastCarVersion = parent.model.carVersion
+        }
+
+        /// A styled player car (sleeker proportions, spoiler, ride height, etc.).
+        private func makePlayerCar(spec: CarSpec, color: UIColor) -> (SCNNode, SCNNode, SCNNode) {
+            var w: Float = 2.0, bodyH: Float = 0.6, len: Float = 4.3
+            var wheelR: Float = 0.45, ride: Float = 0, cabinH: Float = 0.62
+            var spoiler = false, rack = false
+            switch spec.style {
+            case .supercar: w = 2.0; bodyH = 0.48; len = 4.6; wheelR = 0.44; cabinH = 0.48; spoiler = true
+            case .muscle:   w = 2.1; bodyH = 0.66; len = 4.8; wheelR = 0.47; spoiler = true
+            case .suv:      w = 2.1; bodyH = 0.9;  len = 4.6; wheelR = 0.5;  cabinH = 0.82; ride = 0.12; rack = true
+            case .offroad:  w = 2.15; bodyH = 0.85; len = 4.4; wheelR = 0.6; cabinH = 0.78; ride = 0.32; rack = true
+            case .drift:    w = 2.0; bodyH = 0.54; len = 4.4; wheelR = 0.45; spoiler = true
+            case .classic:  w = 2.0; bodyH = 0.74; len = 4.6; wheelR = 0.46
+            case .hatch:    w = 1.9; bodyH = 0.76; len = 3.8; wheelR = 0.42; cabinH = 0.7
+            case .ev:       w = 2.0; bodyH = 0.56; len = 4.4; wheelR = 0.45
+            }
+
+            let car = SCNNode()
+            let body = SCNBox(width: CGFloat(w), height: CGFloat(bodyH), length: CGFloat(len), chamferRadius: 0.28)
+            let pm = SCNMaterial()
+            pm.lightingModel = .physicallyBased
+            pm.diffuse.contents = color
+            pm.metalness.contents = 0.9
+            pm.roughness.contents = 0.3
+            body.materials = [pm]
+            let bodyNode = SCNNode(geometry: body)
+            bodyNode.position = SCNVector3(0, 0.42 + ride, 0)
+            car.addChildNode(bodyNode)
+
+            let cabin = SCNBox(width: CGFloat(w - 0.3), height: CGFloat(cabinH), length: CGFloat(len * 0.45), chamferRadius: 0.26)
+            let glass = SCNMaterial()
+            glass.lightingModel = .physicallyBased
+            glass.diffuse.contents = UIColor(red: 0.10, green: 0.13, blue: 0.18, alpha: 1)
+            glass.metalness.contents = 0.2
+            glass.roughness.contents = 0.05
+            cabin.materials = [glass]
+            let cabinNode = SCNNode(geometry: cabin)
+            cabinNode.position = SCNVector3(0, 0.42 + ride + bodyH / 2 + cabinH / 2 - 0.05, -0.15)
+            car.addChildNode(cabinNode)
+
+            for sx in [-0.6, 0.6] {
+                let hl = SCNBox(width: 0.42, height: 0.18, length: 0.1, chamferRadius: 0.05)
+                let hm = SCNMaterial()
+                hm.diffuse.contents = UIColor.white
+                hm.emission.contents = UIColor(red: 1, green: 0.97, blue: 0.85, alpha: 1)
+                hl.materials = [hm]
+                let n = SCNNode(geometry: hl)
+                n.position = SCNVector3(Float(sx), 0.45 + ride, len / 2 - 0.05)
+                car.addChildNode(n)
+                let tl = SCNBox(width: 0.42, height: 0.16, length: 0.1, chamferRadius: 0.05)
+                let tm = SCNMaterial()
+                tm.diffuse.contents = UIColor.red
+                tm.emission.contents = UIColor(red: 0.9, green: 0.1, blue: 0.1, alpha: 1)
+                tl.materials = [tm]
+                let tn = SCNNode(geometry: tl)
+                tn.position = SCNVector3(Float(sx), 0.45 + ride, -len / 2 + 0.05)
+                car.addChildNode(tn)
+            }
+
+            if spoiler {
+                let wing = SCNBox(width: CGFloat(w - 0.2), height: 0.08, length: 0.5, chamferRadius: 0.03)
+                wing.firstMaterial?.diffuse.contents = UIColor(white: 0.1, alpha: 1)
+                let wn = SCNNode(geometry: wing)
+                wn.position = SCNVector3(0, 0.42 + ride + bodyH / 2 + 0.35, -len / 2 + 0.35)
+                car.addChildNode(wn)
+                for sx in [-0.7, 0.7] {
+                    let strut = SCNBox(width: 0.08, height: 0.35, length: 0.1, chamferRadius: 0)
+                    strut.firstMaterial?.diffuse.contents = UIColor(white: 0.1, alpha: 1)
+                    let stn = SCNNode(geometry: strut)
+                    stn.position = SCNVector3(Float(sx), 0.42 + ride + bodyH / 2 + 0.17, -len / 2 + 0.35)
+                    car.addChildNode(stn)
+                }
+            }
+            if rack {
+                let r = SCNBox(width: CGFloat(w - 0.5), height: 0.08, length: CGFloat(len * 0.35), chamferRadius: 0.02)
+                r.firstMaterial?.diffuse.contents = UIColor(white: 0.15, alpha: 1)
+                let rn = SCNNode(geometry: r)
+                rn.position = SCNVector3(0, 0.42 + ride + bodyH / 2 + cabinH + 0.05, -0.15)
+                car.addChildNode(rn)
+            }
+
+            var pivots: [SCNNode] = []
+            for sx in [-0.95, 0.95] {
+                for sz in [-1.45, 1.45] {
+                    let pivot = SCNNode()
+                    pivot.position = SCNVector3(Float(sx) * (w / 2.0), 0.05 + ride - (0.45 - wheelR) * 0, Float(sz) * (len / 4.3))
+                    let wheel = SCNCylinder(radius: CGFloat(wheelR), height: 0.34)
+                    let wm = SCNMaterial()
+                    wm.diffuse.contents = UIColor(white: 0.07, alpha: 1)
+                    wm.roughness.contents = 0.8
+                    wheel.materials = [wm]
+                    let wn = SCNNode(geometry: wheel)
+                    wn.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+                    let rim = SCNCylinder(radius: CGFloat(wheelR * 0.5), height: 0.36)
+                    rim.firstMaterial?.diffuse.contents = UIColor(white: 0.78, alpha: 1)
+                    rim.firstMaterial?.metalness.contents = 1.0
+                    rim.firstMaterial?.roughness.contents = 0.25
+                    let rimNode = SCNNode(geometry: rim)
+                    rimNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+                    pivot.addChildNode(rimNode)
+                    pivot.addChildNode(wn)
+                    car.addChildNode(pivot)
+                    if sz > 0 { pivots.append(pivot) }
+                }
+            }
+            return (car, pivots.first ?? SCNNode(), pivots.count > 1 ? pivots[1] : SCNNode())
         }
 
         private func spawnTraffic() {
@@ -676,6 +805,7 @@ struct CityScene: UIViewRepresentable {
                     m.bestTime = t
                     UserDefaults.standard.set(t, forKey: "forsa.bestTime")
                 }
+                m.addCredits(8000)   // race payout
                 DispatchQueue.main.asyncAfter(deadline: .now() + 5) { m.raceFinished = false }
             }
         }
@@ -704,6 +834,7 @@ struct CityScene: UIViewRepresentable {
             let m = parent.model
 
             if m.startRaceRequested { m.startRaceRequested = false; startRace() }
+            if m.carVersion != lastCarVersion { rebuildPlayerCar() }
 
             // Cycle the weather every ~35s.
             weatherTimer += dt
@@ -713,25 +844,29 @@ struct CityScene: UIViewRepresentable {
                 applyWeather(weatherIndex)
             }
 
-            let power: Float = 32
-            speed += m.throttle * power * dt
+            speed += m.throttle * carPower * dt
             let drag: Float = m.throttle == 0 ? 1.1 : 0.4
             speed -= speed * drag * dt
-            speed = min(40, max(-12, speed))
+            speed = min(carMaxSpeed, max(-12, speed))
             if abs(speed) < 0.05 { speed = 0 }
 
             if abs(speed) > 0.15 {
-                let steerRate: Float = 2.8
                 let dir: Float = speed >= 0 ? 1 : -1
                 let responsiveness = min(1.0, 0.45 + abs(speed) / 11)
-                heading += m.steer * steerRate * dt * dir * responsiveness
+                heading += m.steer * carSteerRate * dt * dir * responsiveness
             }
             frontLeftPivot.eulerAngles.y = m.steer * 0.5
             frontRightPivot.eulerAngles.y = m.steer * 0.5
 
-            // Drift scoring: hard steering at speed banks points.
+            // Drift scoring: hard steering at speed banks points; cashed as credits.
             let drifting = abs(speed) > 14 && abs(m.steer) > 0.55
-            if drifting { driftScore += abs(speed) * abs(m.steer) * dt * 3 }
+            if drifting {
+                driftScore += abs(speed) * abs(m.steer) * dt * 3
+            } else if driftScore > 0 {
+                let earned = Int(driftScore / 6)
+                driftScore = 0
+                if earned > 0 { DispatchQueue.main.async { m.addCredits(earned) } }
+            }
 
             let fx = sinf(heading), fz = cosf(heading)
             var nx = carX + fx * speed * dt
