@@ -41,6 +41,13 @@ struct CityScene: UIViewRepresentable {
         private let carY: Float = 0.55
         private var driftScore: Float = 0
 
+        // Lighting + weather
+        private var sunNode = SCNNode()
+        private var ambientNode = SCNNode()
+        private var rainNode: SCNNode?
+        private var weatherIndex = 0
+        private var weatherTimer: Float = 0
+
         private var buildings: [(Float, Float, Float, Float)] = []
 
         // Traffic
@@ -97,28 +104,25 @@ struct CityScene: UIViewRepresentable {
             addLandmarks()
             addMountFuji()
             addPagoda(at: SCNVector3(70, 0, 70))
+            addScenery()
             spawnTraffic()
 
-            let ambient = SCNNode()
-            ambient.light = SCNLight(); ambient.light?.type = .ambient
-            ambient.light?.intensity = 340
-            ambient.light?.color = UIColor(red: 0.8, green: 0.82, blue: 0.9, alpha: 1)
-            scene.rootNode.addChildNode(ambient)
+            ambientNode.light = SCNLight(); ambientNode.light?.type = .ambient
+            ambientNode.light?.color = UIColor(white: 1, alpha: 1)
+            scene.rootNode.addChildNode(ambientNode)
 
-            let sun = SCNNode()
-            sun.light = SCNLight(); sun.light?.type = .directional
-            sun.light?.intensity = 1100
-            sun.light?.color = UIColor(red: 1.0, green: 0.97, blue: 0.9, alpha: 1)
-            sun.light?.castsShadow = true
-            sun.light?.shadowMode = .deferred
-            sun.light?.shadowSampleCount = 8
-            sun.light?.shadowRadius = 4
-            sun.light?.shadowColor = UIColor(white: 0, alpha: 0.42)
-            sun.eulerAngles = SCNVector3(-Float.pi / 3.0, Float.pi / 4, 0)
-            scene.rootNode.addChildNode(sun)
+            sunNode.light = SCNLight(); sunNode.light?.type = .directional
+            sunNode.light?.castsShadow = true
+            sunNode.light?.shadowMode = .deferred
+            sunNode.light?.shadowSampleCount = 8
+            sunNode.light?.shadowRadius = 4
+            sunNode.light?.shadowColor = UIColor(white: 0, alpha: 0.42)
+            sunNode.eulerAngles = SCNVector3(-Float.pi / 3.0, Float.pi / 4, 0)
+            scene.rootNode.addChildNode(sunNode)
 
             buildCar()
             scene.rootNode.addChildNode(carNode)
+            applyWeather(0)
 
             let cam = SCNCamera()
             cam.fieldOfView = 62
@@ -174,6 +178,33 @@ struct CityScene: UIViewRepresentable {
                 scene.rootNode.addChildNode(dn)
                 t += 12
             }
+
+            // Street lamps and roadside cherry trees along the avenue.
+            var l: Float = -World.half + 22
+            while l < World.half {
+                addLamp(vertical ? SCNVector3(coord + 9, 0, l) : SCNVector3(l, 0, coord + 9))
+                if Int(l) % 90 == 0 {
+                    addCherryTree(vertical ? SCNVector3(coord - 11, 0, l) : SCNVector3(l, 0, coord - 11),
+                                  blossom: true)
+                }
+                l += 45
+            }
+        }
+
+        private func addLamp(_ p: SCNVector3) {
+            let post = SCNCylinder(radius: 0.18, height: 6)
+            post.firstMaterial?.diffuse.contents = UIColor(white: 0.25, alpha: 1)
+            let pn = SCNNode(geometry: post)
+            pn.position = SCNVector3(p.x, 3, p.z)
+            scene.rootNode.addChildNode(pn)
+            let bulb = SCNSphere(radius: 0.4)
+            let bm = SCNMaterial()
+            bm.diffuse.contents = UIColor(red: 1, green: 0.95, blue: 0.7, alpha: 1)
+            bm.emission.contents = UIColor(red: 1, green: 0.92, blue: 0.6, alpha: 1)
+            bulb.materials = [bm]
+            let bn = SCNNode(geometry: bulb)
+            bn.position = SCNVector3(p.x, 6, p.z)
+            scene.rootNode.addChildNode(bn)
         }
 
         // MARK: City
@@ -317,6 +348,128 @@ struct CityScene: UIViewRepresentable {
             spire.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.85, green: 0.7, blue: 0.3, alpha: 1)
             spire.position = SCNVector3(p.x, y + 1.5, p.z)
             scene.rootNode.addChildNode(spire)
+        }
+
+        /// A ring of mountains and rolling green hills beyond the playable
+        /// boundary — the Forza-style horizon. They sit outside the drive area
+        /// so the car never reaches (or clips) them.
+        private func addScenery() {
+            let count = 24
+            for k in 0..<count {
+                let a = Float(k) / Float(count) * 2 * .pi + Float.random(in: -0.1...0.1)
+                let r = World.half + 140 + Float.random(in: 0...300)
+                let x = cosf(a) * r, z = sinf(a) * r
+                let h = Float.random(in: 70...190)
+                let cone = SCNCone(topRadius: CGFloat(Float.random(in: 3...16)),
+                                   bottomRadius: CGFloat(h * 0.8), height: CGFloat(h))
+                let cm = SCNMaterial()
+                cm.diffuse.contents = UIColor(red: 0.36, green: 0.42, blue: 0.5, alpha: 1)
+                cm.roughness.contents = 1.0
+                cone.materials = [cm]
+                let n = SCNNode(geometry: cone)
+                n.position = SCNVector3(x, h / 2 - 3, z)
+                n.castsShadow = false
+                scene.rootNode.addChildNode(n)
+                if h > 120 {
+                    let cap = SCNCone(topRadius: 0, bottomRadius: CGFloat(h * 0.3), height: CGFloat(h * 0.32))
+                    cap.firstMaterial?.diffuse.contents = UIColor.white
+                    let cn = SCNNode(geometry: cap)
+                    cn.position = SCNVector3(x, h - h * 0.16 - 3, z)
+                    cn.castsShadow = false
+                    scene.rootNode.addChildNode(cn)
+                }
+            }
+            // Lower rounded green hills just past the edge.
+            for _ in 0..<20 {
+                let a = Float.random(in: 0...(2 * .pi))
+                let r = World.half + Float.random(in: 25...150)
+                let x = cosf(a) * r, z = sinf(a) * r
+                let rad = Float.random(in: 45...95)
+                let hill = SCNSphere(radius: CGFloat(rad))
+                let hm = SCNMaterial()
+                hm.diffuse.contents = UIColor(red: 0.30, green: 0.5, blue: 0.27, alpha: 1)
+                hm.roughness.contents = 1.0
+                hill.materials = [hm]
+                let n = SCNNode(geometry: hill)
+                n.position = SCNVector3(x, -rad + Float.random(in: 12...28), z)   // top peeks above ground
+                n.castsShadow = false
+                scene.rootNode.addChildNode(n)
+            }
+        }
+
+        // MARK: Weather
+
+        private struct WeatherType {
+            let name: String
+            let top: (CGFloat, CGFloat, CGFloat)
+            let horizon: (CGFloat, CGFloat, CGFloat)
+            let ground: (CGFloat, CGFloat, CGFloat)
+            let fog: UIColor
+            let fogStart: CGFloat
+            let fogEnd: CGFloat
+            let sun: CGFloat
+            let sunColor: UIColor
+            let ambient: CGFloat
+            let rain: Bool
+        }
+
+        private let weathers: [WeatherType] = [
+            WeatherType(name: "☀️ Sunny",
+                        top: (0.40, 0.58, 0.86), horizon: (0.70, 0.80, 0.92), ground: (0.40, 0.42, 0.44),
+                        fog: UIColor(red: 0.82, green: 0.85, blue: 0.90, alpha: 1), fogStart: 180, fogEnd: 760,
+                        sun: 1150, sunColor: UIColor(red: 1, green: 0.97, blue: 0.9, alpha: 1), ambient: 360, rain: false),
+            WeatherType(name: "⛅ Cloudy",
+                        top: (0.62, 0.66, 0.72), horizon: (0.78, 0.80, 0.84), ground: (0.40, 0.42, 0.44),
+                        fog: UIColor(red: 0.74, green: 0.76, blue: 0.80, alpha: 1), fogStart: 130, fogEnd: 560,
+                        sun: 600, sunColor: UIColor(red: 0.9, green: 0.92, blue: 0.95, alpha: 1), ambient: 430, rain: false),
+            WeatherType(name: "🌧️ Rain",
+                        top: (0.42, 0.45, 0.52), horizon: (0.55, 0.58, 0.63), ground: (0.30, 0.32, 0.35),
+                        fog: UIColor(red: 0.52, green: 0.55, blue: 0.60, alpha: 1), fogStart: 90, fogEnd: 420,
+                        sun: 380, sunColor: UIColor(red: 0.8, green: 0.84, blue: 0.9, alpha: 1), ambient: 400, rain: true),
+            WeatherType(name: "🌇 Sunset",
+                        top: (0.30, 0.26, 0.52), horizon: (0.98, 0.62, 0.40), ground: (0.32, 0.24, 0.28),
+                        fog: UIColor(red: 0.92, green: 0.66, blue: 0.5, alpha: 1), fogStart: 150, fogEnd: 700,
+                        sun: 820, sunColor: UIColor(red: 1.0, green: 0.7, blue: 0.45, alpha: 1), ambient: 320, rain: false),
+        ]
+
+        private func applyWeather(_ i: Int) {
+            let w = weathers[i % weathers.count]
+            let sky = Self.skyTexture(top: w.top, horizon: w.horizon, ground: w.ground)
+            scene.background.contents = sky
+            scene.lightingEnvironment.contents = sky
+            scene.lightingEnvironment.intensity = w.rain ? 0.8 : 1.4
+            scene.fogColor = w.fog
+            scene.fogStartDistance = w.fogStart
+            scene.fogEndDistance = w.fogEnd
+            sunNode.light?.intensity = w.sun
+            sunNode.light?.color = w.sunColor
+            ambientNode.light?.intensity = w.ambient
+
+            rainNode?.removeFromParentNode()
+            rainNode = nil
+            if w.rain { addRain() }
+
+            let name = w.name
+            DispatchQueue.main.async { self.parent.model.weather = name }
+        }
+
+        private func addRain() {
+            let node = SCNNode()
+            node.position = SCNVector3(0, 30, 0)
+            let ps = SCNParticleSystem()
+            ps.birthRate = 800
+            ps.particleLifeSpan = 1.5
+            ps.emitterShape = SCNBox(width: 95, height: 1, length: 95, chamferRadius: 0)
+            ps.birthLocation = .volume
+            ps.emittingDirection = SCNVector3(0, -1, 0)
+            ps.spreadingAngle = 3
+            ps.particleVelocity = 34
+            ps.acceleration = SCNVector3(0, -14, 0)
+            ps.particleSize = 0.04
+            ps.particleColor = UIColor(white: 0.85, alpha: 0.6)
+            node.addParticleSystem(ps)
+            carNode.addChildNode(node)   // follows the player so rain is always visible
+            rainNode = node
         }
 
         // MARK: Cars
@@ -552,6 +705,14 @@ struct CityScene: UIViewRepresentable {
 
             if m.startRaceRequested { m.startRaceRequested = false; startRace() }
 
+            // Cycle the weather every ~35s.
+            weatherTimer += dt
+            if weatherTimer > 35 {
+                weatherTimer = 0
+                weatherIndex = (weatherIndex + 1) % weathers.count
+                applyWeather(weatherIndex)
+            }
+
             let power: Float = 32
             speed += m.throttle * power * dt
             let drag: Float = m.throttle == 0 ? 1.1 : 0.4
@@ -626,14 +787,20 @@ struct CityScene: UIViewRepresentable {
         // MARK: Procedural textures
 
         static func skyTexture() -> UIImage {
+            skyTexture(top: (0.40, 0.58, 0.86), horizon: (0.70, 0.80, 0.92), ground: (0.40, 0.42, 0.44))
+        }
+
+        static func skyTexture(top: (CGFloat, CGFloat, CGFloat),
+                               horizon: (CGFloat, CGFloat, CGFloat),
+                               ground: (CGFloat, CGFloat, CGFloat)) -> UIImage {
             let size = CGSize(width: 8, height: 256)
             let r = UIGraphicsImageRenderer(size: size)
             return r.image { ctx in
                 let cg = ctx.cgContext
-                let colors = [UIColor(red: 0.40, green: 0.58, blue: 0.86, alpha: 1).cgColor,
-                              UIColor(red: 0.68, green: 0.78, blue: 0.92, alpha: 1).cgColor,
-                              UIColor(red: 0.92, green: 0.86, blue: 0.88, alpha: 1).cgColor,
-                              UIColor(red: 0.40, green: 0.42, blue: 0.44, alpha: 1).cgColor]
+                let colors = [UIColor(red: top.0, green: top.1, blue: top.2, alpha: 1).cgColor,
+                              UIColor(red: horizon.0, green: horizon.1, blue: horizon.2, alpha: 1).cgColor,
+                              UIColor(red: horizon.0, green: horizon.1, blue: horizon.2, alpha: 1).cgColor,
+                              UIColor(red: ground.0, green: ground.1, blue: ground.2, alpha: 1).cgColor]
                 let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
                                       colors: colors as CFArray, locations: [0, 0.45, 0.5, 1])!
                 cg.drawLinearGradient(grad, start: CGPoint(x: 0, y: 0),

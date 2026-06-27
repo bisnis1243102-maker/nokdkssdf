@@ -14,6 +14,7 @@ final class DriveModel: ObservableObject {
     // HUD (updated ~6x/sec from the scene)
     @Published var speedKmh: Int = 0
     @Published var area: String = "Festival"
+    @Published var weather: String = "☀️ Sunny"
     @Published var distanceM: Int = 0
     @Published var carX: Float = 0
     @Published var carZ: Float = 0

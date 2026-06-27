@@ -42,10 +42,14 @@ struct ContentView: View {
     private var topHUD: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(model.area.uppercased())
-                    .font(.system(size: 18, weight: .black, design: .rounded))
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(.ultraThinMaterial))
+                HStack(spacing: 6) {
+                    Text(model.area.uppercased())
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                    Text(model.weather)
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(.ultraThinMaterial))
                 Text("\(model.distanceM) m driven")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10).padding(.vertical, 4)
