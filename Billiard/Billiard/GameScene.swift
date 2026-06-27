@@ -185,9 +185,9 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
         let body = SKPhysicsBody(circleOfRadius: r)
         body.restitution = 0.95
-        body.friction = 0.4
-        body.linearDamping = 1.4          // felt rolling resistance
-        body.angularDamping = 1.4
+        body.friction = 0.2
+        body.linearDamping = 0.7          // felt rolling resistance (lower = rolls further)
+        body.angularDamping = 0.7
         body.mass = 0.16
         body.categoryBitMask = Cat.ball
         body.collisionBitMask = Cat.ball | Cat.cushion
@@ -254,24 +254,25 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         let p = t.location(in: self)
         // Pull back from the cue ball to aim forward (slingshot).
         aimVector = CGVector(dx: cueBall.position.x - p.x, dy: cueBall.position.y - p.y)
-        let mag = min(hypot(aimVector.dx, aimVector.dy), 160)
+        let mag = min(hypot(aimVector.dx, aimVector.dy), 220)
         let ang = atan2(aimVector.dy, aimVector.dx)
         let path = CGMutablePath()
         path.move(to: cueBall.position)
-        path.addLine(to: CGPoint(x: cueBall.position.x + cos(ang) * (mag + 30),
-                                 y: cueBall.position.y + sin(ang) * (mag + 30)))
+        path.addLine(to: CGPoint(x: cueBall.position.x + cos(ang) * (mag + 40),
+                                 y: cueBall.position.y + sin(ang) * (mag + 40)))
         aimLine.path = path
-        let power = mag / 160
+        let power = mag / 220
         aimLine.strokeColor = SKColor(red: 1, green: 1 - power, blue: 0.2, alpha: 0.85)
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         defer { aiming = false; aimLine.path = nil }
         guard aiming, cueBall.parent != nil else { return }
-        let mag = min(hypot(aimVector.dx, aimVector.dy), 160)
-        guard mag > 8 else { return }
+        let mag = min(hypot(aimVector.dx, aimVector.dy), 220)
+        guard mag > 4 else { return }
         let ang = atan2(aimVector.dy, aimVector.dx)
-        let impulse: CGFloat = mag * 0.014
+        let impulse: CGFloat = mag * 0.06          // much stronger shot
+        cueBall.physicsBody?.velocity = .zero
         cueBall.physicsBody?.applyImpulse(CGVector(dx: cos(ang) * impulse, dy: sin(ang) * impulse))
     }
 
