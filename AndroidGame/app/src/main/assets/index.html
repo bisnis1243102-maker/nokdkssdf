@@ -5,139 +5,182 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Forsa Horizon 6</title>
 <style>
-  html,body{margin:0;height:100%;overflow:hidden;background:#88b;touch-action:none;font-family:-apple-system,Roboto,sans-serif;}
+  html,body{margin:0;height:100%;overflow:hidden;background:#9fc0e0;touch-action:none;
+            font-family:-apple-system,Roboto,sans-serif;-webkit-user-select:none;user-select:none;}
   #c{display:block;width:100vw;height:100vh;}
-  .hud{position:fixed;color:#fff;text-shadow:0 1px 3px #000;pointer-events:none;}
-  #top{top:10px;left:12px;font-weight:800;}
-  #spd{top:10px;right:14px;text-align:right;font-weight:900;font-size:26px;}
-  #spd small{font-size:12px;}
-  .btn{position:fixed;width:74px;height:74px;border-radius:50%;background:rgba(255,255,255,.18);
-       border:2px solid rgba(255,255,255,.5);color:#fff;font-size:30px;font-weight:900;
-       display:flex;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;}
-  .btn:active{background:rgba(255,255,255,.4);}
-  #gas{right:24px;bottom:30px;width:92px;height:92px;background:rgba(40,200,90,.6);}
-  #brk{right:130px;bottom:30px;background:rgba(220,60,60,.6);}
-  #left{left:24px;bottom:30px;background:rgba(60,120,230,.55);}
-  #right{left:130px;bottom:30px;background:rgba(60,120,230,.55);}
+  .hud{position:fixed;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.6);pointer-events:none;}
+  #top{top:12px;left:14px;font-weight:800;font-size:15px;letter-spacing:.5px;}
+  #spd{top:10px;right:16px;text-align:right;font-weight:900;font-size:30px;}
+  #spd small{font-size:12px;font-weight:700;}
+  .btn{position:fixed;border-radius:50%;border:2px solid rgba(255,255,255,.55);color:#fff;
+       font-size:30px;font-weight:900;display:flex;align-items:center;justify-content:center;
+       width:78px;height:78px;backdrop-filter:blur(2px);}
+  .btn:active{filter:brightness(1.4);}
+  #gas{right:26px;bottom:32px;width:96px;height:96px;background:rgba(38,190,90,.55);}
+  #brk{right:138px;bottom:32px;background:rgba(220,70,70,.5);}
+  #left{left:26px;bottom:32px;background:rgba(70,130,235,.5);}
+  #right{left:138px;bottom:32px;background:rgba(70,130,235,.5);}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="top" class="hud">FORSA HORIZON 6</div>
-<div id="spd" class="hud">0<small> km/h</small></div>
+<div id="spd" class="hud">0<small> KM/H</small></div>
 <div id="left" class="btn">◀</div>
 <div id="right" class="btn">▶</div>
 <div id="brk" class="btn">▼</div>
 <div id="gas" class="btn">▲</div>
 <script src="three.min.js"></script>
 <script>
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x9fc4e8);
-scene.fog = new THREE.Fog(0xbcd2e8, 120, 900);
-
-const camera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.1, 3000);
-const renderer = new THREE.WebGLRenderer({canvas: document.getElementById('c'), antialias:true});
+const HALF = 380;
+const renderer = new THREE.WebGLRenderer({canvas:document.getElementById('c'), antialias:true});
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 
-const HALF = 400;
+const scene = new THREE.Scene();
 
-// Lights
-scene.add(new THREE.HemisphereLight(0xffffff, 0x556b2f, 0.9));
-const sun = new THREE.DirectionalLight(0xfff3da, 1.1);
-sun.position.set(120, 200, 80); sun.castShadow = true;
-sun.shadow.camera.left=-300; sun.shadow.camera.right=300; sun.shadow.camera.top=300; sun.shadow.camera.bottom=-300;
-sun.shadow.mapSize.set(1024,1024);
+// Sky gradient background
+function skyTexture(){
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0,0,0,256);
+  g.addColorStop(0.0,'#3f78c0');
+  g.addColorStop(0.55,'#9cc2e6');
+  g.addColorStop(1.0,'#dfeaf2');
+  ctx.fillStyle = g; ctx.fillRect(0,0,4,256);
+  const t = new THREE.CanvasTexture(c); t.needsUpdate = true; return t;
+}
+scene.background = skyTexture();
+scene.fog = new THREE.Fog(0xcdddea, 200, 760);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.5, 4000);
+
+// Lighting
+scene.add(new THREE.HemisphereLight(0xdfeaff, 0x4a6b3a, 0.85));
+const sun = new THREE.DirectionalLight(0xfff2da, 1.25);
+sun.position.set(160, 260, 120);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-260; sun.shadow.camera.right=260;
+sun.shadow.camera.top=260; sun.shadow.camera.bottom=-260;
+sun.shadow.camera.far = 700; sun.shadow.bias = -0.0004;
 scene.add(sun);
 
-// Ground
+// Grass ground
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(HALF*2+200, HALF*2+200),
-  new THREE.MeshStandardMaterial({color:0x4f8a3f, roughness:1}));
+  new THREE.PlaneGeometry(HALF*2+400, HALF*2+400),
+  new THREE.MeshStandardMaterial({color:0x5a8f49, roughness:1}));
 ground.rotation.x = -Math.PI/2; ground.receiveShadow = true;
 scene.add(ground);
 
-// Roads grid + buildings
-const roadMat = new THREE.MeshStandardMaterial({color:0x23252b, roughness:.9});
-const buildings = [];
-for (let g=-HALF+40; g<=HALF-40; g+=90){
-  const rv = new THREE.Mesh(new THREE.PlaneGeometry(18, HALF*2), roadMat);
-  rv.rotation.x=-Math.PI/2; rv.position.set(g,0.02,0); scene.add(rv);
-  const rh = new THREE.Mesh(new THREE.PlaneGeometry(HALF*2, 18), roadMat);
-  rh.rotation.x=-Math.PI/2; rh.position.set(0,0.02,g); scene.add(rh);
-}
-const palette=[0x6a89b8,0xb86a6a,0x6ab88a,0xc2b56a,0x8a6ab8,0x9aa3ad];
-for (let x=-HALF+50; x<=HALF-50; x+=90){
-  for (let z=-HALF+50; z<=HALF-50; z+=90){
-    if (Math.abs(x)<60 && Math.abs(z)<60) continue;
-    const h = 12 + Math.random()*70;
-    const b = new THREE.Mesh(new THREE.BoxGeometry(34, h, 34),
-      new THREE.MeshStandardMaterial({color:palette[(Math.random()*palette.length)|0], roughness:.7, metalness:.2}));
-    b.position.set(x + (Math.random()*30-15), h/2, z + (Math.random()*30-15));
-    b.castShadow = true; scene.add(b);
-    buildings.push({x:b.position.x, z:b.position.z, hw:17, hd:17});
+// Roads (asphalt) + lane lines + sidewalks
+const STEP = 95;
+const roadMat = new THREE.MeshStandardMaterial({color:0x2e3034, roughness:.95});
+const lineMat = new THREE.MeshStandardMaterial({color:0xd8c84a, emissive:0x2a2410});
+const walkMat = new THREE.MeshStandardMaterial({color:0x8c9098, roughness:1});
+for (let g=-HALF; g<=HALF; g+=STEP){
+  const rv=new THREE.Mesh(new THREE.PlaneGeometry(16,HALF*2),roadMat); rv.rotation.x=-Math.PI/2; rv.position.set(g,0.02,0); rv.receiveShadow=true; scene.add(rv);
+  const rh=new THREE.Mesh(new THREE.PlaneGeometry(HALF*2,16),roadMat); rh.rotation.x=-Math.PI/2; rh.position.set(0,0.02,g); rh.receiveShadow=true; scene.add(rh);
+  for(let t=-HALF;t<HALF;t+=14){
+    const dv=new THREE.Mesh(new THREE.PlaneGeometry(0.5,5),lineMat); dv.rotation.x=-Math.PI/2; dv.position.set(g,0.05,t+3); scene.add(dv);
+    const dh=new THREE.Mesh(new THREE.PlaneGeometry(5,0.5),lineMat); dh.rotation.x=-Math.PI/2; dh.position.set(t+3,0.05,g); scene.add(dh);
   }
 }
 
-// Distant mountains
-for (let i=0;i<26;i++){
-  const a = i/26*Math.PI*2, r = HALF+260+Math.random()*400;
-  const mh = 120+Math.random()*220;
-  const m = new THREE.Mesh(new THREE.ConeGeometry(mh*0.8, mh, 7),
-    new THREE.MeshStandardMaterial({color:0x687786, roughness:1}));
-  m.position.set(Math.cos(a)*r, mh/2-5, Math.sin(a)*r); scene.add(m);
+// City blocks: sidewalks + muted buildings
+const buildings = [];
+const palette=[0x9aa4af,0xb4a892,0xa7b0b8,0xa9b29f,0xc2b6a2,0x93a0ad,0x8f9bbf];
+for (let x=-HALF+STEP/2; x<HALF; x+=STEP){
+  for (let z=-HALF+STEP/2; z<HALF; z+=STEP){
+    if (Math.abs(x)<70 && Math.abs(z)<70) continue;
+    const walk=new THREE.Mesh(new THREE.BoxGeometry(64,0.3,64),walkMat); walk.position.set(x,0.15,z); walk.receiveShadow=true; scene.add(walk);
+    const tall = Math.random()<0.45;
+    const h = tall ? 30+Math.random()*70 : 10+Math.random()*22;
+    const w = 34+Math.random()*10;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),
+      new THREE.MeshStandardMaterial({color:palette[(Math.random()*palette.length)|0],
+        roughness:.78, metalness:tall?0.25:0.05}));
+    b.position.set(x,h/2+0.3,z); b.castShadow=true; b.receiveShadow=true; scene.add(b);
+    buildings.push({x:x,z:z,hw:w/2,hd:w/2});
+    if(Math.random()<0.5){
+      const tx=x+(Math.random()*40-20), tz=z+(Math.random()*40-20);
+      const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.5,2.4,6),new THREE.MeshStandardMaterial({color:0x5b3d24}));
+      tr.position.set(tx,1.2,tz); scene.add(tr);
+      const cr=new THREE.Mesh(new THREE.SphereGeometry(2.1,8,8),new THREE.MeshStandardMaterial({color:0x3e7d3a,roughness:1}));
+      cr.position.set(tx,3.4,tz); cr.castShadow=true; scene.add(cr);
+    }
+  }
 }
 
-// Player car
+// Distant grey mountains under the fog
+for (let i=0;i<18;i++){
+  const a=i/18*Math.PI*2, r=HALF+320+Math.random()*350, mh=160+Math.random()*220;
+  const m=new THREE.Mesh(new THREE.ConeGeometry(mh*0.85,mh,8),
+    new THREE.MeshStandardMaterial({color:0x7e8ba0,roughness:1}));
+  m.position.set(Math.cos(a)*r, mh/2-6, Math.sin(a)*r); scene.add(m);
+  if(mh>300){
+    const cap=new THREE.Mesh(new THREE.ConeGeometry(mh*0.3,mh*0.3,8),new THREE.MeshStandardMaterial({color:0xf2f5fa}));
+    cap.position.set(Math.cos(a)*r, mh-mh*0.18-6, Math.sin(a)*r); scene.add(cap);
+  }
+}
+
+// Car
 function makeCar(color){
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.0,0.7,4.3),
-    new THREE.MeshStandardMaterial({color, metalness:.8, roughness:.35}));
-  body.position.y=0.6; body.castShadow=true; g.add(body);
-  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.7,0.6,2.0),
-    new THREE.MeshStandardMaterial({color:0x14181f, metalness:.3, roughness:.1}));
-  cab.position.set(0,1.15,-0.2); g.add(cab);
-  const wheelGeo = new THREE.CylinderGeometry(0.45,0.45,0.34,16);
-  const wheelMat = new THREE.MeshStandardMaterial({color:0x111111, roughness:.8});
-  [[-0.95,1.4],[0.95,1.4],[-0.95,-1.4],[0.95,-1.4]].forEach(p=>{
-    const w = new THREE.Mesh(wheelGeo, wheelMat); w.rotation.z=Math.PI/2;
-    w.position.set(p[0],0.45,p[1]); g.add(w);
+  const g=new THREE.Group();
+  const paint=new THREE.MeshStandardMaterial({color, metalness:.85, roughness:.32});
+  const lower=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.5,4.4),paint); lower.position.y=0.55; lower.castShadow=true; g.add(lower);
+  const hood=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.35,1.6),paint); hood.position.set(0,0.85,1.1); g.add(hood);
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.55,1.9),
+    new THREE.MeshStandardMaterial({color:0x12161d,metalness:.4,roughness:.08})); cab.position.set(0,1.0,-0.3); g.add(cab);
+  const wing=new THREE.Mesh(new THREE.BoxGeometry(1.9,0.08,0.4),new THREE.MeshStandardMaterial({color:0x111})); wing.position.set(0,1.05,-2.1); g.add(wing);
+  const wgeo=new THREE.CylinderGeometry(0.46,0.46,0.34,18), wmat=new THREE.MeshStandardMaterial({color:0x0c0c0c,roughness:.85});
+  const rgeo=new THREE.CylinderGeometry(0.24,0.24,0.36,12), rmat=new THREE.MeshStandardMaterial({color:0xb8bcc2,metalness:1,roughness:.3});
+  [[-0.98,1.45],[0.98,1.45],[-0.98,-1.45],[0.98,-1.45]].forEach(p=>{
+    const w=new THREE.Mesh(wgeo,wmat); w.rotation.z=Math.PI/2; w.position.set(p[0],0.46,p[1]); w.castShadow=true; g.add(w);
+    const r=new THREE.Mesh(rgeo,rmat); r.rotation.z=Math.PI/2; r.position.set(p[0],0.46,p[1]); g.add(r);
+  });
+  [-0.6,0.6].forEach(sx=>{
+    const hl=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.18,0.1),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xfff1c0,emissiveIntensity:1.2}));
+    hl.position.set(sx,0.62,2.2); g.add(hl);
+    const tl=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.16,0.1),new THREE.MeshStandardMaterial({color:0xff2222,emissive:0xaa0000,emissiveIntensity:1}));
+    tl.position.set(sx,0.62,-2.2); g.add(tl);
   });
   return g;
 }
-const car = makeCar(0xd92222); scene.add(car);
-let cx=0, cz=170, heading=Math.PI, speed=0;
+const car=makeCar(0xd61f26); car.castShadow=true; scene.add(car);
+let cx=20, cz=150, heading=Math.PI, speed=0;
 
 // Controls
-const input = {gas:0, brake:0, steer:0};
-function bind(id, on){
+const input={gas:0,brake:0,left:0,right:0};
+function bind(id,key){
   const el=document.getElementById(id);
-  const set=(v)=>{ if(id==='gas')input.gas=v; if(id==='brk')input.brake=v;
-                   if(id==='left')input.steer=v?-1:(input.steer<0?0:input.steer);
-                   if(id==='right')input.steer=v?1:(input.steer>0?0:input.steer); };
-  el.addEventListener('touchstart',e=>{e.preventDefault();set(1);},{passive:false});
-  el.addEventListener('touchend',e=>{e.preventDefault();set(0);},{passive:false});
-  el.addEventListener('mousedown',()=>set(1));
-  el.addEventListener('mouseup',()=>set(0));
+  const dn=e=>{e.preventDefault();input[key]=1;}, up=e=>{e.preventDefault();input[key]=0;};
+  el.addEventListener('touchstart',dn,{passive:false}); el.addEventListener('touchend',up,{passive:false});
+  el.addEventListener('touchcancel',up,{passive:false});
+  el.addEventListener('mousedown',dn); el.addEventListener('mouseup',up); el.addEventListener('mouseleave',up);
 }
-['gas','brk','left','right'].forEach(id=>bind(id));
+bind('gas','gas'); bind('brk','brake'); bind('left','left'); bind('right','right');
 
-const spdEl = document.getElementById('spd');
-let last = performance.now();
+const spdEl=document.getElementById('spd');
+let last=performance.now();
 function loop(now){
-  const dt = Math.min(0.05,(now-last)/1000); last=now;
-
-  speed += (input.gas - input.brake) * 30 * dt;
-  speed -= speed * (input.gas||input.brake?0.4:1.0) * dt;
-  speed = Math.max(-12, Math.min(40, speed));
-  if (Math.abs(speed)>0.2){
-    const dir = speed>=0?1:-1;
-    heading += input.steer * 2.6 * dt * dir * Math.min(1, 0.45+Math.abs(speed)/11);
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  const steer=input.right-input.left;
+  speed += (input.gas - input.brake) * 32 * dt;
+  speed -= speed * ((input.gas||input.brake)?0.4:1.0) * dt;
+  speed = Math.max(-12, Math.min(42, speed));
+  if(Math.abs(speed)>0.2){
+    const dir=speed>=0?1:-1;
+    heading += steer * 2.7 * dt * dir * Math.min(1,0.45+Math.abs(speed)/11);
   }
   const fx=Math.sin(heading), fz=Math.cos(heading);
   let nx=cx+fx*speed*dt, nz=cz+fz*speed*dt;
-  const lim=HALF-3; nx=Math.max(-lim,Math.min(lim,nx)); nz=Math.max(-lim,Math.min(lim,nz));
+  const lim=HALF-4; nx=Math.max(-lim,Math.min(lim,nx)); nz=Math.max(-lim,Math.min(lim,nz));
   for(const b of buildings){
     const ex=b.hw+2.3, ez=b.hd+2.3, ddx=nx-b.x, ddz=nz-b.z;
     if(Math.abs(ddx)<ex && Math.abs(ddz)<ez){
@@ -145,15 +188,14 @@ function loop(now){
       speed*=0.3;
     }
   }
-  cx=nx; cz=nz;
-  car.position.set(cx,0,cz); car.rotation.y=heading;
+  cx=nx; cz=nz; car.position.set(cx,0,cz); car.rotation.y=heading;
 
-  const camPos = new THREE.Vector3(cx-fx*15, 8.5, cz-fz*15);
-  camera.position.lerp(camPos, Math.min(1,dt*4.5));
-  camera.lookAt(cx+fx*6, 1.6, cz+fz*6);
+  const camTarget=new THREE.Vector3(cx-fx*16, 8.5, cz-fz*16);
+  camera.position.lerp(camTarget, Math.min(1,dt*4));
+  camera.lookAt(cx+fx*8, 2.0, cz+fz*8);
 
-  spdEl.innerHTML = Math.round(Math.abs(speed)*7.5)+'<small> km/h</small>';
-  renderer.render(scene, camera);
+  spdEl.innerHTML=Math.round(Math.abs(speed)*7.5)+'<small> KM/H</small>';
+  renderer.render(scene,camera);
   requestAnimationFrame(loop);
 }
 addEventListener('resize',()=>{
