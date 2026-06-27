@@ -50,6 +50,14 @@ struct CityScene: UIViewRepresentable {
 
         private var buildings: [(Float, Float, Float, Float)] = []
 
+        // Race mode
+        private var cpPositions: [(Float, Float)] = []
+        private var cpNode = SCNNode()
+        private var raceActive = false
+        private var currentCP = 0
+        private var raceTime: Float = 0
+        private var arrowRel: Float = 0
+
         // Traffic
         private struct Traffic {
             let node: SCNNode
@@ -620,6 +628,93 @@ struct CityScene: UIViewRepresentable {
             }
         }
 
+        // MARK: Race / festival mode
+
+        private func makeCheckpoint() -> SCNNode {
+            let node = SCNNode()
+            let ring = SCNTorus(ringRadius: 6, pipeRadius: 0.55)
+            let rm = SCNMaterial()
+            rm.diffuse.contents = UIColor(red: 1, green: 0.2, blue: 0.9, alpha: 1)
+            rm.emission.contents = UIColor(red: 1, green: 0.2, blue: 0.9, alpha: 1)
+            ring.materials = [rm]
+            let rn = SCNNode(geometry: ring)
+            rn.position.y = 0.5
+            rn.runAction(.repeatForever(.rotateBy(x: 0, y: CGFloat.pi * 2, z: 0, duration: 4)))
+            node.addChildNode(rn)
+
+            // Tall light beam so the next gate is visible from afar.
+            let beam = SCNCylinder(radius: 1.1, height: 36)
+            let bm = SCNMaterial()
+            bm.diffuse.contents = UIColor(red: 1, green: 0.3, blue: 0.95, alpha: 0.22)
+            bm.emission.contents = UIColor(red: 1, green: 0.3, blue: 0.95, alpha: 0.5)
+            bm.blendMode = .add
+            bm.writesToDepthBuffer = false
+            beam.materials = [bm]
+            let bn = SCNNode(geometry: beam)
+            bn.position.y = 18
+            node.addChildNode(bn)
+            return node
+        }
+
+        private func positionCheckpoint() {
+            guard currentCP < cpPositions.count else { return }
+            let (x, z) = cpPositions[currentCP]
+            cpNode.position = SCNVector3(x, 0, z)
+        }
+
+        private func startRace() {
+            cpNode.removeFromParentNode()
+            cpPositions = (0..<6).map { _ in
+                (Float.random(in: -165...165), Float.random(in: -165...165))
+            }
+            cpNode = makeCheckpoint()
+            scene.rootNode.addChildNode(cpNode)
+            currentCP = 0
+            raceTime = 0
+            raceActive = true
+            positionCheckpoint()
+            let m = parent.model
+            let total = cpPositions.count
+            DispatchQueue.main.async {
+                m.racing = true; m.raceFinished = false
+                m.cpTotal = total; m.cpIndex = 0; m.raceTime = 0
+            }
+        }
+
+        private func finishRace() {
+            raceActive = false
+            cpNode.removeFromParentNode()
+            let t = Double(raceTime)
+            let m = parent.model
+            DispatchQueue.main.async {
+                m.racing = false
+                m.raceFinished = true
+                m.lastTime = t
+                if m.bestTime == 0 || t < m.bestTime {
+                    m.bestTime = t
+                    UserDefaults.standard.set(t, forKey: "forsa.bestTime")
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5) { m.raceFinished = false }
+            }
+        }
+
+        private func updateRace(dt: Float) {
+            guard raceActive, currentCP < cpPositions.count else { return }
+            raceTime += dt
+            let (cx, cz) = cpPositions[currentCP]
+            let dx = cx - carX, dz = cz - carZ
+            // Arrow direction relative to where the car is pointing.
+            var rel = atan2f(dx, dz) - heading
+            while rel > .pi { rel -= 2 * .pi }
+            while rel < -.pi { rel += 2 * .pi }
+            arrowRel = rel
+            if sqrtf(dx * dx + dz * dz) < 7 {
+                currentCP += 1
+                if currentCP >= cpPositions.count { finishRace() }
+                else { positionCheckpoint() }
+            }
+        }
+
         // MARK: Per-frame update
 
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
@@ -646,8 +741,9 @@ struct CityScene: UIViewRepresentable {
             frontLeftPivot.eulerAngles.y = m.steer * 0.5
             frontRightPivot.eulerAngles.y = m.steer * 0.5
 
-            // Carjack request from the on-screen button.
+            // On-screen button actions.
             if m.stealRequested { m.stealRequested = false; attemptSteal() }
+            if m.startRaceRequested { m.startRaceRequested = false; startRace() }
 
             let fx = sinf(heading), fz = cosf(heading)
             var nx = carX + fx * speed * dt
@@ -685,6 +781,7 @@ struct CityScene: UIViewRepresentable {
             updateTraffic(dt: dt, playerX: nx, playerZ: nz)
             updatePolice(dt: dt, playerX: nx, playerZ: nz, time: Float(time))
             updateWanted(dt: dt)
+            updateRace(dt: dt)
 
             // Chase camera
             let desired = SCNVector3(nx - fx * 14, 8.5, nz - fz * 14)
@@ -703,10 +800,12 @@ struct CityScene: UIViewRepresentable {
                 let name = World.name(x: nx, z: nz)
                 let stars = wanted > 0 ? min(5, Int(wanted.rounded(.up))) : 0
                 let hx = nx, hz = nz, hh = heading
+                let racing = raceActive, cpi = currentCP, rt = Double(raceTime), arrow = arrowRel
                 DispatchQueue.main.async {
                     m.speedKmh = kmh; m.distanceM = dist; m.district = name
                     m.stars = stars
                     m.carX = hx; m.carZ = hz; m.heading = hh
+                    m.racing = racing; m.cpIndex = cpi; m.raceTime = rt; m.arrowAngle = arrow
                 }
             }
         }

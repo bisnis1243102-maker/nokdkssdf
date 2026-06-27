@@ -26,9 +26,27 @@ struct ContentView: View {
                 }
                 .transition(.opacity)
             }
+
+            if model.raceFinished {
+                ZStack {
+                    Color.black.opacity(0.5).ignoresSafeArea()
+                    VStack(spacing: 10) {
+                        Text("🏁 FINISH!")
+                            .font(.system(size: 44, weight: .black, design: .rounded))
+                            .foregroundColor(.white)
+                        Text("Time  \(timeString(model.lastTime))")
+                            .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
+                            .foregroundColor(.pink)
+                        Text(model.lastTime <= model.bestTime ? "🏆 New Best!" : "Best  \(timeString(model.bestTime))")
+                            .font(.headline).foregroundColor(.yellow)
+                    }
+                }
+                .transition(.opacity)
+            }
         }
         .statusBarHidden(true)
         .animation(.easeInOut, value: model.busted)
+        .animation(.easeInOut, value: model.raceFinished)
     }
 
     // MARK: HUD
@@ -59,6 +77,8 @@ struct ContentView: View {
             .foregroundColor(.white)
 
             Spacer()
+            raceCenter
+            Spacer()
 
             VStack(spacing: 6) {
                 MiniMap(model: model).frame(width: 96, height: 96)
@@ -66,6 +86,44 @@ struct ContentView: View {
             }
         }
         .shadow(radius: 3)
+    }
+
+    @ViewBuilder
+    private var raceCenter: some View {
+        if model.racing {
+            VStack(spacing: 6) {
+                Text("CHECKPOINT \(min(model.cpIndex + 1, model.cpTotal))/\(model.cpTotal)")
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                Text(timeString(model.raceTime))
+                    .font(.system(size: 26, weight: .black, design: .rounded).monospacedDigit())
+                Image(systemName: "location.north.fill")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundColor(.pink)
+                    .rotationEffect(.radians(Double(model.arrowAngle)))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(0.35)))
+        } else {
+            Button {
+                model.startRaceRequested = true
+                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+            } label: {
+                VStack(spacing: 2) {
+                    Image(systemName: "flag.checkered").font(.system(size: 22, weight: .bold))
+                    Text("START RACE").font(.system(size: 13, weight: .heavy, design: .rounded))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 18).padding(.vertical, 12)
+                .background(Capsule().fill(LinearGradient(colors: [.purple, .pink],
+                                                          startPoint: .leading, endPoint: .trailing)))
+            }
+        }
+    }
+
+    private func timeString(_ t: Double) -> String {
+        let m = Int(t) / 60, s = Int(t) % 60, cs = Int((t - floor(t)) * 100)
+        return String(format: "%d:%02d.%02d", m, s, cs)
     }
 
     private var speedo: some View {
