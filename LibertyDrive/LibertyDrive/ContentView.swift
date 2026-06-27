@@ -16,17 +16,6 @@ struct ContentView: View {
             }
             .padding()
 
-            if model.busted {
-                ZStack {
-                    Color.black.opacity(0.45).ignoresSafeArea()
-                    Text("BUSTED")
-                        .font(.system(size: 64, weight: .black, design: .rounded))
-                        .foregroundColor(.red)
-                        .shadow(radius: 8)
-                }
-                .transition(.opacity)
-            }
-
             if model.raceFinished {
                 ZStack {
                     Color.black.opacity(0.5).ignoresSafeArea()
@@ -45,7 +34,6 @@ struct ContentView: View {
             }
         }
         .statusBarHidden(true)
-        .animation(.easeInOut, value: model.busted)
         .animation(.easeInOut, value: model.raceFinished)
     }
 
@@ -54,7 +42,7 @@ struct ContentView: View {
     private var topHUD: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(model.district.uppercased())
+                Text(model.area.uppercased())
                     .font(.system(size: 18, weight: .black, design: .rounded))
                     .padding(.horizontal, 12).padding(.vertical, 6)
                     .background(Capsule().fill(.ultraThinMaterial))
@@ -62,16 +50,18 @@ struct ContentView: View {
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(Capsule().fill(.black.opacity(0.3)))
-                if model.stars > 0 {
-                    HStack(spacing: 3) {
-                        ForEach(0..<model.stars, id: \.self) { _ in
-                            Image(systemName: "star.fill")
+                if model.driftScore > 0 {
+                    HStack(spacing: 5) {
+                        if model.drifting {
+                            Text("DRIFT!").foregroundColor(.orange)
                         }
+                        Text("\(model.driftScore) pts").foregroundColor(.white)
                     }
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.yellow)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Capsule().fill(.black.opacity(0.3)))
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Capsule().fill(.black.opacity(0.35)))
+                    .scaleEffect(model.drifting ? 1.08 : 1.0)
+                    .animation(.easeOut(duration: 0.15), value: model.drifting)
                 }
             }
             .foregroundColor(.white)
@@ -142,7 +132,6 @@ struct ContentView: View {
 
     private var controls: some View {
         HStack(alignment: .bottom) {
-            // Steering
             HStack(spacing: 14) {
                 PedalButton(symbol: "arrowtriangle.left.fill", tint: .blue) { down in
                     model.steer = down ? -1 : 0
@@ -152,9 +141,6 @@ struct ContentView: View {
                 }
             }
             Spacer()
-            stealButton
-            Spacer()
-            // Throttle / brake
             VStack(spacing: 14) {
                 PedalButton(symbol: "chevron.up", tint: .green, big: true) { down in
                     model.throttle = down ? 1 : 0
@@ -163,22 +149,6 @@ struct ContentView: View {
                     model.throttle = down ? -1 : 0
                 }
             }
-        }
-    }
-
-    private var stealButton: some View {
-        Button {
-            model.stealRequested = true
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: "hand.raised.fill").font(.system(size: 20, weight: .bold))
-                Text("STEAL").font(.system(size: 11, weight: .heavy, design: .rounded))
-            }
-            .foregroundColor(.white)
-            .frame(width: 76, height: 76)
-            .background(Circle().fill(Color.orange.opacity(0.85)))
-            .overlay(Circle().stroke(.white.opacity(0.4), lineWidth: 2))
         }
     }
 }
@@ -203,12 +173,8 @@ private struct PedalButton: View {
             .scaleEffect(pressed ? 0.93 : 1)
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        if !pressed { pressed = true; onChange(true) }
-                    }
-                    .onEnded { _ in
-                        pressed = false; onChange(false)
-                    }
+                    .onChanged { _ in if !pressed { pressed = true; onChange(true) } }
+                    .onEnded { _ in pressed = false; onChange(false) }
             )
             .animation(.easeOut(duration: 0.1), value: pressed)
     }
@@ -223,7 +189,6 @@ private struct MiniMap: View {
         GeometryReader { geo in
             let s = geo.size.width
             ZStack {
-                // 3x3 district grid (row 0 = north = top).
                 VStack(spacing: 1) {
                     ForEach(0..<3, id: \.self) { row in
                         HStack(spacing: 1) {
@@ -235,7 +200,6 @@ private struct MiniMap: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                // Player dot.
                 Circle().fill(.white)
                     .frame(width: 9, height: 9)
                     .overlay(Circle().stroke(.black, lineWidth: 1.5))

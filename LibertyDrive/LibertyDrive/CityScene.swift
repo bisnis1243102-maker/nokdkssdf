@@ -32,7 +32,6 @@ struct CityScene: UIViewRepresentable {
         private let carNode = SCNNode()
         private var frontLeftPivot = SCNNode()
         private var frontRightPivot = SCNNode()
-        private var wheelNodes: [SCNNode] = []
 
         // Car state
         private var carX: Float = 0
@@ -40,15 +39,21 @@ struct CityScene: UIViewRepresentable {
         private var heading: Float = .pi
         private var speed: Float = 0
         private let carY: Float = 0.55
-        private var playerPaint: SCNMaterial?
-
-        // Wanted system
-        private var wanted: Float = 0          // 0...5
-        private var bustTimer: Float = 0
-        private var crashCooldown: Float = 0
-        private var minPoliceDist: Float = 9999
+        private var driftScore: Float = 0
 
         private var buildings: [(Float, Float, Float, Float)] = []
+
+        // Traffic
+        private struct Traffic {
+            let node: SCNNode
+            let axis: Int
+            var pos: Float
+            let fixed: Float
+            let dir: Float
+            let baseSpeed: Float
+            var curSpeed: Float
+        }
+        private var traffic: [Traffic] = []
 
         // Race mode
         private var cpPositions: [(Float, Float)] = []
@@ -57,29 +62,6 @@ struct CityScene: UIViewRepresentable {
         private var currentCP = 0
         private var raceTime: Float = 0
         private var arrowRel: Float = 0
-
-        // Traffic
-        private struct Traffic {
-            let node: SCNNode
-            let axis: Int          // 0 = travels along X, 1 = travels along Z
-            var pos: Float
-            let fixed: Float       // perpendicular lane coordinate
-            let dir: Float         // +1 or -1
-            let baseSpeed: Float
-            var curSpeed: Float
-            let color: UIColor
-        }
-        private var traffic: [Traffic] = []
-
-        private struct Police {
-            let node: SCNNode
-            var x: Float
-            var z: Float
-            var heading: Float
-            let red: SCNNode
-            let blue: SCNNode
-        }
-        private var police: [Police] = []
 
         private var lastTime: TimeInterval = 0
         private var hudAccum: Float = 0
@@ -94,19 +76,16 @@ struct CityScene: UIViewRepresentable {
             scene.background.contents = sky
             scene.lightingEnvironment.contents = sky
             scene.lightingEnvironment.intensity = 1.4
-
-            // Atmospheric haze for depth.
-            scene.fogColor = UIColor(red: 0.72, green: 0.80, blue: 0.88, alpha: 1)
-            scene.fogStartDistance = 130
-            scene.fogEndDistance = 620
+            scene.fogColor = UIColor(red: 0.82, green: 0.84, blue: 0.88, alpha: 1)
+            scene.fogStartDistance = 160
+            scene.fogEndDistance = 700
             scene.fogDensityExponent = 1.1
 
-            // Ground
             let groundSize = CGFloat(World.half) * 2 + 80
             let ground = SCNBox(width: groundSize, height: 2, length: groundSize, chamferRadius: 0)
             let gMat = SCNMaterial()
             gMat.lightingModel = .physicallyBased
-            gMat.diffuse.contents = UIColor(red: 0.17, green: 0.18, blue: 0.20, alpha: 1)
+            gMat.diffuse.contents = UIColor(red: 0.30, green: 0.40, blue: 0.26, alpha: 1)   // grassy
             gMat.roughness.contents = 0.95
             ground.materials = [gMat]
             let groundNode = SCNNode(geometry: ground)
@@ -116,34 +95,34 @@ struct CityScene: UIViewRepresentable {
             addRoads()
             buildCity()
             addLandmarks()
+            addMountFuji()
+            addPagoda(at: SCNVector3(70, 0, 70))
             spawnTraffic()
 
-            // Lighting
             let ambient = SCNNode()
             ambient.light = SCNLight(); ambient.light?.type = .ambient
-            ambient.light?.intensity = 300
-            ambient.light?.color = UIColor(red: 0.7, green: 0.78, blue: 0.9, alpha: 1)
+            ambient.light?.intensity = 340
+            ambient.light?.color = UIColor(red: 0.8, green: 0.82, blue: 0.9, alpha: 1)
             scene.rootNode.addChildNode(ambient)
 
             let sun = SCNNode()
             sun.light = SCNLight(); sun.light?.type = .directional
             sun.light?.intensity = 1100
-            sun.light?.color = UIColor(red: 1.0, green: 0.96, blue: 0.86, alpha: 1)
+            sun.light?.color = UIColor(red: 1.0, green: 0.97, blue: 0.9, alpha: 1)
             sun.light?.castsShadow = true
             sun.light?.shadowMode = .deferred
             sun.light?.shadowSampleCount = 8
             sun.light?.shadowRadius = 4
-            sun.light?.shadowColor = UIColor(white: 0, alpha: 0.45)
+            sun.light?.shadowColor = UIColor(white: 0, alpha: 0.42)
             sun.eulerAngles = SCNVector3(-Float.pi / 3.0, Float.pi / 4, 0)
             scene.rootNode.addChildNode(sun)
 
             buildCar()
             scene.rootNode.addChildNode(carNode)
 
-            // Camera with HDR + bloom
             let cam = SCNCamera()
             cam.fieldOfView = 62
-            cam.zFar = 1400
+            cam.zFar = 2000
             cam.wantsHDR = true
             cam.bloomIntensity = 0.55
             cam.bloomThreshold = 0.82
@@ -157,7 +136,7 @@ struct CityScene: UIViewRepresentable {
             return scene
         }
 
-        // MARK: Roads + sidewalks
+        // MARK: Roads
 
         private func addRoads() {
             let step: Float = 45
@@ -173,9 +152,8 @@ struct CityScene: UIViewRepresentable {
             let length = CGFloat(World.half) * 2 + 80
             let roadMat = SCNMaterial()
             roadMat.lightingModel = .physicallyBased
-            roadMat.diffuse.contents = UIColor(red: 0.12, green: 0.13, blue: 0.14, alpha: 1)
+            roadMat.diffuse.contents = UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1)
             roadMat.roughness.contents = 0.8
-
             let road = SCNBox(width: vertical ? 16 : length, height: 0.12,
                               length: vertical ? length : 16, chamferRadius: 0)
             road.materials = [roadMat]
@@ -183,10 +161,9 @@ struct CityScene: UIViewRepresentable {
             n.position = vertical ? SCNVector3(coord, 0.07, 0) : SCNVector3(0, 0.07, coord)
             scene.rootNode.addChildNode(n)
 
-            // Dashed centre line.
             let lineMat = SCNMaterial()
-            lineMat.diffuse.contents = UIColor(red: 0.95, green: 0.85, blue: 0.3, alpha: 1)
-            lineMat.emission.contents = UIColor(red: 0.4, green: 0.35, blue: 0.1, alpha: 1)
+            lineMat.diffuse.contents = UIColor(red: 0.95, green: 0.9, blue: 0.4, alpha: 1)
+            lineMat.emission.contents = UIColor(red: 0.4, green: 0.36, blue: 0.12, alpha: 1)
             var t: Float = -World.half
             while t <= World.half {
                 let dash = SCNBox(width: vertical ? 0.4 : 4, height: 0.05,
@@ -197,47 +174,22 @@ struct CityScene: UIViewRepresentable {
                 scene.rootNode.addChildNode(dn)
                 t += 12
             }
-
-            // Street lamps every 45 units along the avenue.
-            var l: Float = -World.half + 22
-            while l < World.half {
-                addLamp(vertical ? SCNVector3(coord + 9, 0, l) : SCNVector3(l, 0, coord + 9))
-                l += 45
-            }
         }
 
-        private func addLamp(_ p: SCNVector3) {
-            let post = SCNCylinder(radius: 0.18, height: 6)
-            post.firstMaterial?.diffuse.contents = UIColor(white: 0.25, alpha: 1)
-            let postNode = SCNNode(geometry: post)
-            postNode.position = SCNVector3(p.x, 3, p.z)
-            scene.rootNode.addChildNode(postNode)
-
-            let bulb = SCNSphere(radius: 0.45)
-            let bm = SCNMaterial()
-            bm.diffuse.contents = UIColor(red: 1, green: 0.95, blue: 0.7, alpha: 1)
-            bm.emission.contents = UIColor(red: 1, green: 0.92, blue: 0.6, alpha: 1)
-            bulb.materials = [bm]
-            let bulbNode = SCNNode(geometry: bulb)
-            bulbNode.position = SCNVector3(p.x, 6, p.z)
-            scene.rootNode.addChildNode(bulbNode)
-        }
-
-        // MARK: City blocks
+        // MARK: City
 
         private func buildCity() {
             let windows = Self.windowTexture()
             let positions = stride(from: Float(-180), through: 180, by: 45).map { $0 }
             for px in positions {
                 for pz in positions {
-                    if abs(px) < 23 && abs(pz) < 23 { continue }            // central plaza
+                    if abs(px) < 23 && abs(pz) < 23 { continue }
                     addSidewalk(px, pz)
-                    if Int(abs(px) + abs(pz)) % 7 == 0 { addPark(px, pz); continue }
+                    if Int(abs(px) + abs(pz)) % 5 == 0 { addPark(px, pz); continue }
 
                     let d = World.district(x: px, z: pz)
                     let footprint: CGFloat = 26
-                    let h = d.tall ? CGFloat.random(in: 38...100) : CGFloat.random(in: 12...36)
-
+                    let h = d.tall ? CGFloat.random(in: 34...88) : CGFloat.random(in: 12...34)
                     let b = SCNBox(width: footprint, height: h, length: footprint, chamferRadius: 0.8)
                     let mat = SCNMaterial()
                     mat.lightingModel = .physicallyBased
@@ -246,28 +198,15 @@ struct CityScene: UIViewRepresentable {
                                                    blue: d.b + jitter, alpha: 1)
                     mat.roughness.contents = 0.6
                     mat.metalness.contents = d.tall ? 0.35 : 0.05
-                    // Glowing windows via an emissive tiled texture.
                     mat.emission.contents = windows
                     mat.emission.wrapS = .repeat
                     mat.emission.wrapT = .repeat
-                    mat.emission.intensity = 0.9
-                    let tilesX = Float(footprint / 6.5)
-                    let tilesY = Float(h / 6.5)
-                    mat.emission.contentsTransform = SCNMatrix4MakeScale(tilesX, tilesY, 1)
+                    mat.emission.intensity = 0.85
+                    mat.emission.contentsTransform = SCNMatrix4MakeScale(Float(footprint / 6.5), Float(h / 6.5), 1)
                     b.materials = [mat]
-
                     let node = SCNNode(geometry: b)
                     node.position = SCNVector3(px, Float(h) / 2, pz)
-                    node.castsShadow = true
                     scene.rootNode.addChildNode(node)
-
-                    // Rooftop detail box.
-                    let roof = SCNBox(width: footprint * 0.35, height: 3, length: footprint * 0.35, chamferRadius: 0.3)
-                    roof.firstMaterial?.diffuse.contents = UIColor(white: 0.3, alpha: 1)
-                    let roofNode = SCNNode(geometry: roof)
-                    roofNode.position = SCNVector3(px, Float(h) + 1.5, pz)
-                    scene.rootNode.addChildNode(roofNode)
-
                     buildings.append((px, pz, Float(footprint / 2), Float(footprint / 2)))
                 }
             }
@@ -275,7 +214,7 @@ struct CityScene: UIViewRepresentable {
 
         private func addSidewalk(_ x: Float, _ z: Float) {
             let sw = SCNBox(width: 34, height: 0.3, length: 34, chamferRadius: 0)
-            sw.firstMaterial?.diffuse.contents = UIColor(white: 0.42, alpha: 1)
+            sw.firstMaterial?.diffuse.contents = UIColor(white: 0.46, alpha: 1)
             sw.firstMaterial?.roughness.contents = 0.9
             let n = SCNNode(geometry: sw)
             n.position = SCNVector3(x, 0.16, z)
@@ -284,25 +223,32 @@ struct CityScene: UIViewRepresentable {
 
         private func addPark(_ x: Float, _ z: Float) {
             let park = SCNBox(width: 30, height: 0.25, length: 30, chamferRadius: 0)
-            park.firstMaterial?.diffuse.contents = UIColor(red: 0.28, green: 0.52, blue: 0.26, alpha: 1)
+            park.firstMaterial?.diffuse.contents = UIColor(red: 0.30, green: 0.55, blue: 0.28, alpha: 1)
             park.firstMaterial?.roughness.contents = 1.0
             let n = SCNNode(geometry: park)
             n.position = SCNVector3(x, 0.2, z)
             scene.rootNode.addChildNode(n)
             for _ in 0..<4 {
                 let tx = x + Float.random(in: -11...11), tz = z + Float.random(in: -11...11)
-                let trunk = SCNNode(geometry: SCNCylinder(radius: 0.35, height: 2.4))
-                trunk.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.4, green: 0.27, blue: 0.16, alpha: 1)
-                trunk.position = SCNVector3(tx, 1.2, tz)
-                scene.rootNode.addChildNode(trunk)
-                let crown = SCNNode(geometry: SCNSphere(radius: 1.8))
-                let cm = SCNMaterial()
-                cm.diffuse.contents = UIColor(red: 0.2, green: 0.5 + .random(in: -0.05...0.08), blue: 0.2, alpha: 1)
-                cm.roughness.contents = 1.0
-                crown.geometry?.materials = [cm]
-                crown.position = SCNVector3(tx, 3.2, tz)
-                scene.rootNode.addChildNode(crown)
+                addCherryTree(SCNVector3(tx, 0, tz), blossom: Bool.random())
             }
+        }
+
+        /// A tree — cherry-blossom (pink) or green — to sell the Japan setting.
+        private func addCherryTree(_ p: SCNVector3, blossom: Bool) {
+            let trunk = SCNNode(geometry: SCNCylinder(radius: 0.35, height: 2.4))
+            trunk.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.36, green: 0.24, blue: 0.16, alpha: 1)
+            trunk.position = SCNVector3(p.x, 1.2, p.z)
+            scene.rootNode.addChildNode(trunk)
+            let crown = SCNNode(geometry: SCNSphere(radius: 1.9))
+            let cm = SCNMaterial()
+            cm.diffuse.contents = blossom
+                ? UIColor(red: 1.0, green: 0.72, blue: 0.82, alpha: 1)
+                : UIColor(red: 0.2, green: 0.5, blue: 0.22, alpha: 1)
+            cm.roughness.contents = 1.0
+            crown.geometry?.materials = [cm]
+            crown.position = SCNVector3(p.x, 3.3, p.z)
+            scene.rootNode.addChildNode(crown)
         }
 
         private func addLandmarks() {
@@ -325,11 +271,58 @@ struct CityScene: UIViewRepresentable {
             scene.rootNode.addChildNode(sn)
         }
 
+        /// Snow-capped Mt. Fuji backdrop beyond the bay.
+        private func addMountFuji() {
+            let base = SCNCone(topRadius: 14, bottomRadius: 150, height: 150)
+            let bm = SCNMaterial()
+            bm.diffuse.contents = UIColor(red: 0.40, green: 0.45, blue: 0.52, alpha: 1)
+            bm.roughness.contents = 1.0
+            base.materials = [bm]
+            let baseNode = SCNNode(geometry: base)
+            baseNode.position = SCNVector3(-40, 60, -World.half - 320)
+            baseNode.castsShadow = false
+            scene.rootNode.addChildNode(baseNode)
+
+            let cap = SCNCone(topRadius: 0, bottomRadius: 34, height: 42)
+            let cm = SCNMaterial()
+            cm.diffuse.contents = UIColor.white
+            cm.roughness.contents = 0.85
+            cap.materials = [cm]
+            let capNode = SCNNode(geometry: cap)
+            capNode.position = SCNVector3(-40, 124, -World.half - 320)
+            capNode.castsShadow = false
+            scene.rootNode.addChildNode(capNode)
+        }
+
+        /// A simple multi-tier red-roof pagoda landmark.
+        private func addPagoda(at p: SCNVector3) {
+            let widths: [CGFloat] = [9, 7.5, 6]
+            var y: Float = 0
+            for (i, w) in widths.enumerated() {
+                let body = SCNBox(width: w, height: 4, length: w, chamferRadius: 0.2)
+                body.firstMaterial?.diffuse.contents = UIColor(red: 0.85, green: 0.82, blue: 0.74, alpha: 1)
+                let bn = SCNNode(geometry: body)
+                bn.position = SCNVector3(p.x, y + 2, p.z)
+                scene.rootNode.addChildNode(bn)
+
+                let roof = SCNPyramid(width: w + 4, height: 2.2, length: w + 4)
+                roof.firstMaterial?.diffuse.contents = UIColor(red: 0.72, green: 0.16, blue: 0.18, alpha: 1)
+                let rn = SCNNode(geometry: roof)
+                rn.position = SCNVector3(p.x, y + 4.2, p.z)
+                scene.rootNode.addChildNode(rn)
+                y += 5.2
+                _ = i
+            }
+            let spire = SCNNode(geometry: SCNCylinder(radius: 0.25, height: 3))
+            spire.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.85, green: 0.7, blue: 0.3, alpha: 1)
+            spire.position = SCNVector3(p.x, y + 1.5, p.z)
+            scene.rootNode.addChildNode(spire)
+        }
+
         // MARK: Cars
 
-        private func makeCarBody(paint: UIColor, detailed: Bool) -> (SCNNode, SCNNode, SCNNode, SCNMaterial) {
+        private func makeCarBody(paint: UIColor, detailed: Bool) -> (SCNNode, SCNNode, SCNNode) {
             let car = SCNNode()
-
             let body = SCNBox(width: 2.0, height: 0.6, length: 4.3, chamferRadius: 0.25)
             let pm = SCNMaterial()
             pm.lightingModel = .physicallyBased
@@ -341,7 +334,6 @@ struct CityScene: UIViewRepresentable {
             bodyNode.position = SCNVector3(0, 0.42, 0)
             car.addChildNode(bodyNode)
 
-            // Cabin / greenhouse with glass
             let cabin = SCNBox(width: 1.7, height: 0.62, length: 2.0, chamferRadius: 0.3)
             let glass = SCNMaterial()
             glass.lightingModel = .physicallyBased
@@ -353,9 +345,7 @@ struct CityScene: UIViewRepresentable {
             cabinNode.position = SCNVector3(0, 0.95, -0.15)
             car.addChildNode(cabinNode)
 
-            var pivots: [SCNNode] = []
             if detailed {
-                // Headlights
                 for sx in [-0.6, 0.6] {
                     let hl = SCNBox(width: 0.4, height: 0.2, length: 0.1, chamferRadius: 0.05)
                     let hm = SCNMaterial()
@@ -365,21 +355,18 @@ struct CityScene: UIViewRepresentable {
                     let n = SCNNode(geometry: hl)
                     n.position = SCNVector3(Float(sx), 0.45, 2.15)
                     car.addChildNode(n)
-                }
-                // Taillights
-                for sx in [-0.6, 0.6] {
                     let tl = SCNBox(width: 0.4, height: 0.18, length: 0.1, chamferRadius: 0.05)
                     let tm = SCNMaterial()
                     tm.diffuse.contents = UIColor.red
                     tm.emission.contents = UIColor(red: 0.9, green: 0.1, blue: 0.1, alpha: 1)
                     tl.materials = [tm]
-                    let n = SCNNode(geometry: tl)
-                    n.position = SCNVector3(Float(sx), 0.45, -2.15)
-                    car.addChildNode(n)
+                    let tn = SCNNode(geometry: tl)
+                    tn.position = SCNVector3(Float(sx), 0.45, -2.15)
+                    car.addChildNode(tn)
                 }
             }
 
-            // Wheels (front two in steering pivots)
+            var pivots: [SCNNode] = []
             for sx in [-0.95, 0.95] {
                 for sz in [-1.45, 1.45] {
                     let pivot = SCNNode()
@@ -402,21 +389,18 @@ struct CityScene: UIViewRepresentable {
                     }
                     pivot.addChildNode(wn)
                     car.addChildNode(pivot)
-                    if sz > 0 { pivots.append(pivot) }   // front wheels
+                    if sz > 0 { pivots.append(pivot) }
                 }
             }
-            let fl = pivots.first ?? SCNNode()
-            let fr = pivots.count > 1 ? pivots[1] : SCNNode()
-            return (car, fl, fr, pm)
+            return (car, pivots.first ?? SCNNode(), pivots.count > 1 ? pivots[1] : SCNNode())
         }
 
         private func buildCar() {
-            let (car, fl, fr, mat) = makeCarBody(paint: UIColor(red: 0.85, green: 0.13, blue: 0.16, alpha: 1), detailed: true)
+            let (car, fl, fr) = makeCarBody(paint: UIColor(red: 0.85, green: 0.13, blue: 0.16, alpha: 1), detailed: true)
             carNode.addChildNode(car)
             carNode.position = SCNVector3(carX, carY, carZ)
             frontLeftPivot = fl
             frontRightPivot = fr
-            playerPaint = mat
         }
 
         private func spawnTraffic() {
@@ -427,8 +411,7 @@ struct CityScene: UIViewRepresentable {
                           UIColor(red: 0.2, green: 0.6, blue: 0.3, alpha: 1)]
             let lanes: [Float] = stride(from: Float(-180), through: 180, by: 45).map { $0 }
             for i in 0..<14 {
-                let color = colors[i % colors.count]
-                let (car, _, _, _) = makeCarBody(paint: color, detailed: false)
+                let (car, _, _) = makeCarBody(paint: colors[i % colors.count], detailed: false)
                 let axis = i % 2
                 let lane = lanes[Int.random(in: 0..<lanes.count)] + (Bool.random() ? 4 : -4)
                 let pos = Float.random(in: -World.half...World.half)
@@ -438,46 +421,10 @@ struct CityScene: UIViewRepresentable {
                 car.eulerAngles.y = axis == 0 ? (dir > 0 ? .pi / 2 : -.pi / 2) : (dir > 0 ? 0 : .pi)
                 scene.rootNode.addChildNode(car)
                 traffic.append(Traffic(node: car, axis: axis, pos: pos, fixed: lane,
-                                       dir: dir, baseSpeed: base, curSpeed: base, color: color))
-            }
-            spawnPolice()
-        }
-
-        private func makePoliceCar() -> (SCNNode, SCNNode, SCNNode) {
-            let (car, _, _, _) = makeCarBody(paint: UIColor(white: 0.95, alpha: 1), detailed: true)
-            // Black door panels.
-            let stripe = SCNBox(width: 2.06, height: 0.5, length: 1.7, chamferRadius: 0.2)
-            stripe.firstMaterial?.diffuse.contents = UIColor(white: 0.08, alpha: 1)
-            let sn = SCNNode(geometry: stripe)
-            sn.position = SCNVector3(0, 0.42, 0)
-            car.addChildNode(sn)
-            // Roof light bar.
-            let red = SCNBox(width: 0.5, height: 0.18, length: 0.5, chamferRadius: 0.05)
-            let rm = SCNMaterial(); rm.diffuse.contents = UIColor.red; rm.emission.contents = UIColor.red
-            red.materials = [rm]
-            let rn = SCNNode(geometry: red); rn.position = SCNVector3(-0.35, 1.34, -0.1)
-            car.addChildNode(rn)
-            let blue = SCNBox(width: 0.5, height: 0.18, length: 0.5, chamferRadius: 0.05)
-            let bm = SCNMaterial(); bm.diffuse.contents = UIColor.blue; bm.emission.contents = UIColor.blue
-            blue.materials = [bm]
-            let bn = SCNNode(geometry: blue); bn.position = SCNVector3(0.35, 1.34, -0.1)
-            car.addChildNode(bn)
-            return (car, rn, bn)
-        }
-
-        private func spawnPolice() {
-            for _ in 0..<3 {
-                let (car, red, blue) = makePoliceCar()
-                let x = Float.random(in: -World.half...World.half)
-                let z = Float.random(in: -World.half...World.half)
-                car.position = SCNVector3(x, carY, z)
-                scene.rootNode.addChildNode(car)
-                police.append(Police(node: car, x: x, z: z, heading: 0, red: red, blue: blue))
+                                       dir: dir, baseSpeed: base, curSpeed: base))
             }
         }
 
-        /// Traffic with simple collision-avoidance: cars slow/stop for the player
-        /// and for other cars ahead in their lane, then accelerate back up.
         private func updateTraffic(dt: Float, playerX: Float, playerZ: Float) {
             let lookAhead: Float = 17
             for i in traffic.indices {
@@ -485,14 +432,11 @@ struct CityScene: UIViewRepresentable {
                 let bx: Float = c.axis == 0 ? c.pos : c.fixed
                 let bz: Float = c.axis == 0 ? c.fixed : c.pos
                 var target = c.baseSpeed
-
-                // Player ahead?
                 let pAlong: Float = c.axis == 0 ? (playerX - bx) * c.dir : (playerZ - bz) * c.dir
                 let pLat: Float = c.axis == 0 ? (playerZ - bz) : (playerX - bx)
                 if abs(pLat) < 5 && pAlong > 0 && pAlong < lookAhead {
                     target = min(target, pAlong < 7 ? 0 : c.baseSpeed * 0.3)
                 }
-                // Another car ahead in the same lane?
                 for j in traffic.indices where j != i {
                     let o = traffic[j]
                     if o.axis != c.axis || abs(o.fixed - c.fixed) > 3 { continue }
@@ -504,7 +448,6 @@ struct CityScene: UIViewRepresentable {
                         target = min(target, oAlong < 7 ? 0 : c.baseSpeed * 0.25)
                     }
                 }
-
                 let accel: Float = target > c.curSpeed ? 8 : 24
                 c.curSpeed += max(-accel * dt, min(accel * dt, target - c.curSpeed))
                 c.pos += c.dir * c.curSpeed * dt
@@ -517,118 +460,7 @@ struct CityScene: UIViewRepresentable {
             }
         }
 
-        /// Police pursue only when the player is wanted; otherwise they cruise
-        /// slowly and their lights are off. Tracks the nearest cop for busts.
-        private func updatePolice(dt: Float, playerX: Float, playerZ: Float, time: Float) {
-            let flashRed = sinf(time * 9) > 0
-            let chasing = wanted >= 1
-            var nearest: Float = 9999
-            for i in police.indices {
-                var p = police[i]
-                let dx = playerX - p.x, dz = playerZ - p.z
-                let dist = max(0.001, sqrtf(dx * dx + dz * dz))
-                nearest = min(nearest, dist)
-
-                let targetHeading: Float
-                let spd: Float
-                if chasing {
-                    targetHeading = atan2f(dx, dz)             // seek the player
-                    spd = dist < 8 ? 5 : 24
-                } else {
-                    targetHeading = p.heading + 0.3            // gentle patrol wander
-                    spd = 8
-                }
-                var diff = targetHeading - p.heading
-                while diff > .pi { diff -= 2 * .pi }
-                while diff < -.pi { diff += 2 * .pi }
-                p.heading += max(-2.4 * dt, min(2.4 * dt, diff))
-
-                let fxn = sinf(p.heading), fzn = cosf(p.heading)
-                var nx = p.x + fxn * spd * dt
-                var nz = p.z + fzn * spd * dt
-                let lim = World.half - 3
-                nx = min(lim, max(-lim, nx)); nz = min(lim, max(-lim, nz))
-
-                let rad: Float = 2.3
-                for b in buildings {
-                    let ex = b.2 + rad, ez = b.3 + rad
-                    let ddx = nx - b.0, ddz = nz - b.1
-                    if abs(ddx) < ex && abs(ddz) < ez {
-                        if ex - abs(ddx) < ez - abs(ddz) { nx = b.0 + (ddx < 0 ? -ex : ex) }
-                        else { nz = b.1 + (ddz < 0 ? -ez : ez) }
-                    }
-                }
-                p.x = nx; p.z = nz
-                p.node.position = SCNVector3(nx, carY, nz)
-                p.node.eulerAngles.y = p.heading
-
-                let off = UIColor(white: 0.05, alpha: 1)
-                if chasing {
-                    p.red.geometry?.firstMaterial?.emission.contents =
-                        flashRed ? UIColor.red : UIColor(red: 0.25, green: 0, blue: 0, alpha: 1)
-                    p.blue.geometry?.firstMaterial?.emission.contents =
-                        flashRed ? UIColor(red: 0, green: 0, blue: 0.25, alpha: 1) : UIColor.blue
-                } else {
-                    p.red.geometry?.firstMaterial?.emission.contents = off
-                    p.blue.geometry?.firstMaterial?.emission.contents = off
-                }
-                police[i] = p
-            }
-            minPoliceDist = nearest
-        }
-
-        /// Carjack: take over the nearest civilian car within reach.
-        private func attemptSteal() {
-            guard let idx = traffic.indices.min(by: { a, b in
-                let pa = traffic[a], pb = traffic[b]
-                let ax: Float = pa.axis == 0 ? pa.pos : pa.fixed
-                let az: Float = pa.axis == 0 ? pa.fixed : pa.pos
-                let bx: Float = pb.axis == 0 ? pb.pos : pb.fixed
-                let bz: Float = pb.axis == 0 ? pb.fixed : pb.pos
-                let da = (ax - carX) * (ax - carX) + (az - carZ) * (az - carZ)
-                let db = (bx - carX) * (bx - carX) + (bz - carZ) * (bz - carZ)
-                return da < db
-            }) else { return }
-            let t = traffic[idx]
-            let tx: Float = t.axis == 0 ? t.pos : t.fixed
-            let tz: Float = t.axis == 0 ? t.fixed : t.pos
-            let d = sqrtf((tx - carX) * (tx - carX) + (tz - carZ) * (tz - carZ))
-            guard d < 14 else { return }      // must be close enough
-            // Repaint our car to the stolen one's colour and remove that car.
-            playerPaint?.diffuse.contents = t.color
-            t.node.removeFromParentNode()
-            traffic.remove(at: idx)
-            // Stealing a car is a crime.
-            wanted = min(5, max(wanted, 1) + 1.5)
-        }
-
-        /// Wanted-level decay, escaping, and busts.
-        private func updateWanted(dt: Float) {
-            guard wanted > 0 else { bustTimer = 0; return }
-            // Decay: much faster once you've shaken the nearest cop.
-            let escaping = minPoliceDist > 55
-            wanted = max(0, wanted - (escaping ? 0.35 : 0.05) * dt)
-
-            // Bust: a cop pins you (very close) while you're nearly stopped.
-            if minPoliceDist < 4.2 && abs(speed) < 3 {
-                bustTimer += dt
-            } else {
-                bustTimer = max(0, bustTimer - dt * 0.5)
-            }
-            if bustTimer > 2.5 {
-                bustTimer = 0
-                wanted = 0
-                speed = 0
-                let m = parent.model
-                DispatchQueue.main.async {
-                    m.busted = true
-                    m.stars = 0
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { m.busted = false }
-                }
-            }
-        }
-
-        // MARK: Race / festival mode
+        // MARK: Race mode
 
         private func makeCheckpoint() -> SCNNode {
             let node = SCNNode()
@@ -642,7 +474,6 @@ struct CityScene: UIViewRepresentable {
             rn.runAction(.repeatForever(.rotateBy(x: 0, y: CGFloat.pi * 2, z: 0, duration: 4)))
             node.addChildNode(rn)
 
-            // Tall light beam so the next gate is visible from afar.
             let beam = SCNCylinder(radius: 1.1, height: 36)
             let bm = SCNMaterial()
             bm.diffuse.contents = UIColor(red: 1, green: 0.3, blue: 0.95, alpha: 0.22)
@@ -664,9 +495,7 @@ struct CityScene: UIViewRepresentable {
 
         private func startRace() {
             cpNode.removeFromParentNode()
-            cpPositions = (0..<6).map { _ in
-                (Float.random(in: -165...165), Float.random(in: -165...165))
-            }
+            cpPositions = (0..<6).map { _ in (Float.random(in: -165...165), Float.random(in: -165...165)) }
             cpNode = makeCheckpoint()
             scene.rootNode.addChildNode(cpNode)
             currentCP = 0
@@ -703,15 +532,13 @@ struct CityScene: UIViewRepresentable {
             raceTime += dt
             let (cx, cz) = cpPositions[currentCP]
             let dx = cx - carX, dz = cz - carZ
-            // Arrow direction relative to where the car is pointing.
             var rel = atan2f(dx, dz) - heading
             while rel > .pi { rel -= 2 * .pi }
             while rel < -.pi { rel += 2 * .pi }
             arrowRel = rel
             if sqrtf(dx * dx + dz * dz) < 7 {
                 currentCP += 1
-                if currentCP >= cpPositions.count { finishRace() }
-                else { positionCheckpoint() }
+                if currentCP >= cpPositions.count { finishRace() } else { positionCheckpoint() }
             }
         }
 
@@ -723,27 +550,27 @@ struct CityScene: UIViewRepresentable {
             guard dt > 0 else { return }
             let m = parent.model
 
+            if m.startRaceRequested { m.startRaceRequested = false; startRace() }
+
             let power: Float = 32
             speed += m.throttle * power * dt
             let drag: Float = m.throttle == 0 ? 1.1 : 0.4
             speed -= speed * drag * dt
-            speed = min(38, max(-12, speed))
+            speed = min(40, max(-12, speed))
             if abs(speed) < 0.05 { speed = 0 }
 
             if abs(speed) > 0.15 {
                 let steerRate: Float = 2.8
                 let dir: Float = speed >= 0 ? 1 : -1
-                // More responsive, with a solid base turn-rate even at low speed.
                 let responsiveness = min(1.0, 0.45 + abs(speed) / 11)
                 heading += m.steer * steerRate * dt * dir * responsiveness
             }
-            // Visually turn the front wheels.
             frontLeftPivot.eulerAngles.y = m.steer * 0.5
             frontRightPivot.eulerAngles.y = m.steer * 0.5
 
-            // On-screen button actions.
-            if m.stealRequested { m.stealRequested = false; attemptSteal() }
-            if m.startRaceRequested { m.startRaceRequested = false; startRace() }
+            // Drift scoring: hard steering at speed banks points.
+            let drifting = abs(speed) > 14 && abs(m.steer) > 0.55
+            if drifting { driftScore += abs(speed) * abs(m.steer) * dt * 3 }
 
             let fx = sinf(heading), fz = cosf(heading)
             var nx = carX + fx * speed * dt
@@ -751,8 +578,6 @@ struct CityScene: UIViewRepresentable {
             let lim = World.half - 3
             nx = min(lim, max(-lim, nx)); nz = min(lim, max(-lim, nz))
 
-            let preSpeed = abs(speed)
-            var crashed = false
             let rad: Float = 2.3
             for b in buildings {
                 let ex = b.2 + rad, ez = b.3 + rad
@@ -761,29 +586,17 @@ struct CityScene: UIViewRepresentable {
                     if ex - abs(dx) < ez - abs(dz) { nx = b.0 + (dx < 0 ? -ex : ex) }
                     else { nz = b.1 + (dz < 0 ? -ez : ez) }
                     speed *= 0.25
-                    crashed = true
                 }
             }
-
-            // Crime: crashing hard, or sustained speeding, raises the wanted level.
-            crashCooldown = max(0, crashCooldown - dt)
-            if crashed && preSpeed > 12 && crashCooldown <= 0 {
-                wanted = min(5, wanted + 0.8); crashCooldown = 1.0
-            }
-            if abs(speed) > 30 { wanted = min(5, wanted + 0.25 * dt) }
 
             distance += abs(speed) * dt
             carX = nx; carZ = nz
             carNode.position = SCNVector3(nx, carY, nz)
             carNode.eulerAngles.y = heading
 
-            // Smarter traffic + pursuing police + wanted bookkeeping
             updateTraffic(dt: dt, playerX: nx, playerZ: nz)
-            updatePolice(dt: dt, playerX: nx, playerZ: nz, time: Float(time))
-            updateWanted(dt: dt)
             updateRace(dt: dt)
 
-            // Chase camera
             let desired = SCNVector3(nx - fx * 14, 8.5, nz - fz * 14)
             let lerp = min(1, dt * 4.5)
             cameraNode.position = SCNVector3(
@@ -798,13 +611,13 @@ struct CityScene: UIViewRepresentable {
                 hudAccum = 0
                 let kmh = Int(abs(speed) * 7.5), dist = Int(distance)
                 let name = World.name(x: nx, z: nz)
-                let stars = wanted > 0 ? min(5, Int(wanted.rounded(.up))) : 0
-                let hx = nx, hz = nz, hh = heading
                 let racing = raceActive, cpi = currentCP, rt = Double(raceTime), arrow = arrowRel
+                let ds = Int(driftScore), isDrift = drifting
+                let hx = nx, hz = nz, hh = heading
                 DispatchQueue.main.async {
-                    m.speedKmh = kmh; m.distanceM = dist; m.district = name
-                    m.stars = stars
+                    m.speedKmh = kmh; m.distanceM = dist; m.area = name
                     m.carX = hx; m.carZ = hz; m.heading = hh
+                    m.driftScore = ds; m.drifting = isDrift
                     m.racing = racing; m.cpIndex = cpi; m.raceTime = rt; m.arrowAngle = arrow
                 }
             }
@@ -817,10 +630,10 @@ struct CityScene: UIViewRepresentable {
             let r = UIGraphicsImageRenderer(size: size)
             return r.image { ctx in
                 let cg = ctx.cgContext
-                let colors = [UIColor(red: 0.36, green: 0.56, blue: 0.86, alpha: 1).cgColor,
-                              UIColor(red: 0.62, green: 0.76, blue: 0.92, alpha: 1).cgColor,
-                              UIColor(red: 0.82, green: 0.86, blue: 0.90, alpha: 1).cgColor,
-                              UIColor(red: 0.30, green: 0.32, blue: 0.34, alpha: 1).cgColor]
+                let colors = [UIColor(red: 0.40, green: 0.58, blue: 0.86, alpha: 1).cgColor,
+                              UIColor(red: 0.68, green: 0.78, blue: 0.92, alpha: 1).cgColor,
+                              UIColor(red: 0.92, green: 0.86, blue: 0.88, alpha: 1).cgColor,
+                              UIColor(red: 0.40, green: 0.42, blue: 0.44, alpha: 1).cgColor]
                 let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
                                       colors: colors as CFArray, locations: [0, 0.45, 0.5, 1])!
                 cg.drawLinearGradient(grad, start: CGPoint(x: 0, y: 0),

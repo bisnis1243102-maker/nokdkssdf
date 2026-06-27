@@ -8,9 +8,20 @@ final class DriveModel: ObservableObject {
     var throttle: Float = 0     // -1 (brake/reverse) ... 1 (gas)
     var steer: Float = 0        // -1 (left) ... 1 (right)
 
-    // Momentary actions (consumed by the scene next frame)
-    var stealRequested: Bool = false
+    // Momentary action (consumed by the scene next frame)
     var startRaceRequested: Bool = false
+
+    // HUD (updated ~6x/sec from the scene)
+    @Published var speedKmh: Int = 0
+    @Published var area: String = "Festival"
+    @Published var distanceM: Int = 0
+    @Published var carX: Float = 0
+    @Published var carZ: Float = 0
+    @Published var heading: Float = 0
+
+    // Drift (Forza-style)
+    @Published var driftScore: Int = 0
+    @Published var drifting: Bool = false
 
     // Race / festival mode
     @Published var racing: Bool = false
@@ -21,16 +32,6 @@ final class DriveModel: ObservableObject {
     @Published var raceFinished: Bool = false
     @Published var lastTime: Double = 0
     @Published var bestTime: Double = UserDefaults.standard.double(forKey: "forsa.bestTime")
-
-    // HUD (updated ~6x/sec from the scene)
-    @Published var speedKmh: Int = 0
-    @Published var district: String = "Downtown"
-    @Published var distanceM: Int = 0
-    @Published var stars: Int = 0          // wanted level 0...5
-    @Published var busted: Bool = false
-    @Published var carX: Float = 0
-    @Published var carZ: Float = 0
-    @Published var heading: Float = 0
 
     func resetInput() { throttle = 0; steer = 0 }
 }

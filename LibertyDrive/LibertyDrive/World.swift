@@ -17,15 +17,15 @@ enum World {
 
     /// Row-major 3x3 grid. Row 0 = low Z (north), Col 0 = low X (west).
     static let districts: [District] = [
-        District(name: "The Docks",          r: 0.42, g: 0.48, b: 0.55, tall: false),
-        District(name: "Sunset Beach",       r: 0.95, g: 0.80, b: 0.48, tall: false),
-        District(name: "Vespucci Airfield",  r: 0.58, g: 0.63, b: 0.70, tall: false),
-        District(name: "Chinatown",          r: 0.86, g: 0.38, b: 0.40, tall: true),
-        District(name: "Downtown",           r: 0.52, g: 0.68, b: 0.96, tall: true),
-        District(name: "Financial District", r: 0.46, g: 0.86, b: 0.72, tall: true),
-        District(name: "Industrial Park",    r: 0.70, g: 0.58, b: 0.40, tall: false),
-        District(name: "Old Town",           r: 0.82, g: 0.70, b: 0.52, tall: false),
-        District(name: "Little Hills",       r: 0.58, g: 0.84, b: 0.54, tall: false),
+        District(name: "The Bayfront",   r: 0.42, g: 0.48, b: 0.55, tall: false),
+        District(name: "Fuji View",      r: 0.90, g: 0.74, b: 0.80, tall: false),
+        District(name: "Harbor",         r: 0.58, g: 0.63, b: 0.70, tall: false),
+        District(name: "Akihabara",      r: 0.86, g: 0.38, b: 0.40, tall: true),
+        District(name: "Neo Tokyo",      r: 0.52, g: 0.68, b: 0.96, tall: true),
+        District(name: "Shinjuku",       r: 0.46, g: 0.86, b: 0.72, tall: true),
+        District(name: "Festival Site",  r: 0.92, g: 0.66, b: 0.42, tall: false),
+        District(name: "Sakura Hills",   r: 0.96, g: 0.72, b: 0.82, tall: false),
+        District(name: "Rice Fields",    r: 0.58, g: 0.84, b: 0.54, tall: false),
     ]
 
     static func index(x: Float, z: Float) -> Int {
