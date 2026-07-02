@@ -142,10 +142,14 @@ final class Car3D: SCNNode {
     private func buildBody(color: UIColor) {
         let L = CGFloat(kind.length), W = CGFloat(kind.width)
 
+        // Two-layer automotive paint: metallic base under a glossy clear
+        // coat, so the sky and city reflect off the body work.
         bodyMaterial.diffuse.contents = color
         bodyMaterial.lightingModel = .physicallyBased
-        bodyMaterial.metalness.contents = 0.75
-        bodyMaterial.roughness.contents = 0.28
+        bodyMaterial.metalness.contents = 0.85
+        bodyMaterial.roughness.contents = 0.35
+        bodyMaterial.clearCoat.contents = 1.0
+        bodyMaterial.clearCoatRoughness.contents = 0.08
 
         let body = SCNBox(width: L, height: 13, length: W, chamferRadius: 4)
         body.materials = [bodyMaterial]
@@ -154,16 +158,29 @@ final class Car3D: SCNNode {
         addChildNode(bodyNode)
 
         let glass = SCNMaterial()
-        glass.diffuse.contents = UIColor(red: 0.20, green: 0.28, blue: 0.34, alpha: 1)
+        glass.diffuse.contents = UIColor(red: 0.10, green: 0.14, blue: 0.18, alpha: 1)
         glass.lightingModel = .physicallyBased
-        glass.metalness.contents = 0.9
-        glass.roughness.contents = 0.1
+        glass.metalness.contents = 1.0
+        glass.roughness.contents = 0.04
 
         let cabin = SCNBox(width: L * 0.48, height: 11, length: W * 0.86, chamferRadius: 4)
         cabin.materials = [glass]
         let cabinNode = SCNNode(geometry: cabin)
         cabinNode.position = SCNVector3(Float(-L * 0.06), 23, 0)
         addChildNode(cabinNode)
+
+        // Dark trim bumpers front and rear.
+        let trim = SCNMaterial()
+        trim.diffuse.contents = UIColor(white: 0.10, alpha: 1)
+        trim.lightingModel = .physicallyBased
+        trim.roughness.contents = 0.6
+        for fx: Float in [-1, 1] {
+            let bumper = SCNBox(width: 6, height: 7, length: W * 0.96, chamferRadius: 2.5)
+            bumper.materials = [trim]
+            let bumperNode = SCNNode(geometry: bumper)
+            bumperNode.position = SCNVector3(fx * Float(L / 2), 9, 0)
+            addChildNode(bumperNode)
+        }
 
         // Wheels: steer pivot (front pair) -> spin node -> cylinder.
         let tyre = SCNMaterial()

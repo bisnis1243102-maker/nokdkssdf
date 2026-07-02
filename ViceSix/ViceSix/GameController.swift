@@ -89,6 +89,7 @@ final class GameController: NSObject, SCNSceneRendererDelegate {
     private var nightFactor: CGFloat = 0
     private var atmosphereCooldown: TimeInterval = 0
     private var raining = false
+    private var roadWetness: CGFloat = 0.9
     private var weatherTimer: TimeInterval = 75
     private var hudCooldown: TimeInterval = 0
     private var bannerText: String?
@@ -109,21 +110,40 @@ final class GameController: NSObject, SCNSceneRendererDelegate {
         missionsCompleted = UserDefaults.standard.integer(forKey: "vicesix.mission")
         cash = UserDefaults.standard.integer(forKey: "vicesix.cash")
 
+        // HDR pipeline with the full post stack: bloom for the neon and
+        // headlights, SSAO for contact shadows between the towers, a touch
+        // of vignette and grain, and motion blur that sells the speed.
         let camera = SCNCamera()
-        camera.zFar = 9000
+        camera.zFar = 20000
         camera.fieldOfView = 62
         camera.wantsHDR = true
+        camera.wantsExposureAdaptation = true
+        camera.exposureAdaptationBrighteningSpeedFactor = 1.2
+        camera.exposureAdaptationDarkeningSpeedFactor = 1.2
+        camera.bloomIntensity = 0.8
+        camera.bloomThreshold = 0.65
+        camera.bloomBlurRadius = 12
+        camera.screenSpaceAmbientOcclusionIntensity = 1.0
+        camera.screenSpaceAmbientOcclusionRadius = 22
+        camera.vignettingPower = 1.0
+        camera.vignettingIntensity = 0.6
+        camera.grainIntensity = 0.07
+        camera.grainIsColored = false
+        camera.motionBlurIntensity = 0.35
+        camera.saturation = 1.15
+        camera.contrast = 1.06
         cameraNode.camera = camera
         scene.rootNode.addChildNode(cameraNode)
 
         let sun = SCNLight()
         sun.type = .directional
         sun.castsShadow = true
-        sun.shadowMapSize = CGSize(width: 1024, height: 1024)
-        sun.shadowColor = UIColor(white: 0, alpha: 0.45)
-        sun.shadowRadius = 4
+        sun.shadowMapSize = CGSize(width: 2048, height: 2048)
+        sun.shadowSampleCount = 8
+        sun.shadowColor = UIColor(white: 0, alpha: 0.5)
+        sun.shadowRadius = 5
         sun.automaticallyAdjustsShadowProjection = true
-        sun.maximumShadowDistance = 1600
+        sun.maximumShadowDistance = 1800
         sunNode.light = sun
         sunNode.eulerAngles = SCNVector3(-0.9, -0.7, 0)
         scene.rootNode.addChildNode(sunNode)
@@ -1488,15 +1508,27 @@ final class GameController: NSObject, SCNSceneRendererDelegate {
         sunNode.eulerAngles = SCNVector3(Float(-0.35 - day * 0.75), -0.7, 0)
         ambientNode.light?.intensity = 130 + 320 * day
 
-        // Sky and haze blend from day blue through dusk to deep night.
-        let sky = blend(UIColor(red: 0.05, green: 0.06, blue: 0.14, alpha: 1),
-                        UIColor(red: 0.45, green: 0.66, blue: 0.85, alpha: 1),
-                        t: day)
-        scene.background.contents = sky
-        scene.fogColor = sky
+        // The sky dome darkens through dusk to night; the image-based
+        // light follows it so reflections dim with the sun, and the haze
+        // colour tracks the horizon.
+        let skyTint = blend(UIColor(red: 0.10, green: 0.11, blue: 0.24, alpha: 1),
+                            UIColor.white, t: day)
+        handles.skyMaterial.multiply.contents = skyTint
+        scene.lightingEnvironment.intensity = 0.25 + 1.1 * day
+        scene.fogColor = blend(UIColor(red: 0.05, green: 0.06, blue: 0.13, alpha: 1),
+                               UIColor(red: 0.72, green: 0.80, blue: 0.88, alpha: 1),
+                               t: day)
+
+        // Wet streets go glassy and mirror the lights.
+        let wetTarget: CGFloat = raining ? 0.12 : 0.9
+        roadWetness += (wetTarget - roadWetness) * 0.15
+        handles.asphaltMaterial.roughness.contents = NSNumber(value: Double(roadWetness))
+        handles.asphaltMaterial.metalness.contents =
+            NSNumber(value: raining ? 0.3 : 0.0)
 
         for m in handles.facadeMaterials { m.emission.intensity = nightFactor * 1.1 }
         for m in handles.lampMaterials { m.emission.intensity = nightFactor * 1.6 }
+        handles.lampGlowMaterial.emission.intensity = nightFactor * 1.3
         for m in handles.signalMatsV + handles.signalMatsH {
             m.emission.intensity = 0.5 + nightFactor * 0.9
         }
