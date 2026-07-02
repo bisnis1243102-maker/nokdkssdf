@@ -1,0 +1,53 @@
+name: Build ViceSix IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/gta-game-clyxkn]
+    paths:
+      - "ViceSix/**"
+      - ".github/workflows/vicesix-ipa.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (Release, unsigned)
+        run: |
+          xcodebuild -project ViceSix/ViceSix.xcodeproj \
+            -scheme ViceSix \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
+            build
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R "build/Build/Products/Release-iphoneos/ViceSix.app" Payload/
+          zip -qry ViceSix.ipa Payload
+          ls -la ViceSix.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ViceSix-ipa
+          path: ViceSix.ipa
+
+      - name: Publish as release asset
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: vicesix-ipa
+          name: "Vice Six — unsigned IPA"
+          body: >
+            Unsigned IPA built from the latest ViceSix sources. Install by
+            sideloading with AltStore, Sideloadly, or Xcode — those tools
+            re-sign the app with your own Apple ID. Built by GitHub Actions.
+          files: ViceSix.ipa
