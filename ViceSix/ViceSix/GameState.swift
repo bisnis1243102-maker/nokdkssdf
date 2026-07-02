@@ -96,8 +96,8 @@ enum GameConfig {
     static let starDecayInterval: TimeInterval = 8  // ...then lose a star this often
     static let copSafeDistance: CGFloat = 620       // decay only when cops are far
 
-    static let trafficCount = 14
-    static let pedCount = 24
+    static let trafficCount = 16
+    static let pedCount = 26
     static let spawnRingMin: CGFloat = 750
     static let spawnRingMax: CGFloat = 1900
     static let despawnDistance: CGFloat = 2500

@@ -73,6 +73,34 @@ final class GameScene: SKScene {
     private var bannerRemaining: TimeInterval = 0
     private var frozen = false                       // busted / wasted / finale overlays
 
+    // MARK: Atmosphere & realism
+
+    private var nightFactor: CGFloat = 0
+    private var nightApplyCooldown: TimeInterval = 0
+    private var raining = false
+    private var weatherTimer: TimeInterval = 75
+    private var rainEmitter: SKEmitterNode?
+    private let wetOverlay = SKSpriteNode(color: SKColor(red: 0.35, green: 0.5, blue: 0.75, alpha: 1),
+                                          size: CGSize(width: 4000, height: 4000))
+    private var lampPools: [SKShapeNode] = []
+    private var signalDotsV: [[SKShapeNode]] = [[], []]   // indexed by intersection parity
+    private var signalDotsH: [[SKShapeNode]] = [[], []]
+    private var lastSignalKey = -1
+    private var skidPool: [SKSpriteNode] = []
+    private var skidIndex = 0
+    private var skidTimer: TimeInterval = 0
+    private var playerSlip: CGFloat = 0
+
+    private static let rainTexture: SKTexture = {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 3, height: 16))
+        let image = renderer.image { _ in
+            UIColor(white: 1, alpha: 0.9).setFill()
+            UIBezierPath(roundedRect: CGRect(x: 1, y: 0, width: 1.4, height: 16),
+                         cornerRadius: 0.7).fill()
+        }
+        return SKTexture(image: image)
+    }()
+
     // MARK: - Setup
 
     override init() {
@@ -97,6 +125,12 @@ final class GameScene: SKScene {
         nightOverlay.zPosition = 150
         nightOverlay.alpha = 0
         uiNode.addChild(nightOverlay)
+
+        wetOverlay.zPosition = 149
+        wetOverlay.alpha = 0
+        uiNode.addChild(wetOverlay)
+
+        SoundEngine.shared.start()
 
         let arrowPath = CGMutablePath()
         arrowPath.move(to: CGPoint(x: 16, y: 0))
@@ -173,6 +207,47 @@ final class GameScene: SKScene {
             }
         }
 
+        // Every intersection gets crosswalks, a street-lamp pool for the
+        // night, and a pair of signal dots (one per axis) that cycle.
+        for i in 0...City.blocksX {
+            for j in 0...City.blocksY {
+                let cx = City.roadCenter(i)
+                let cy = City.roadCenter(j)
+                let paint = SKColor(white: 0.9, alpha: 0.24)
+                for s: CGFloat in [-1, 1] {
+                    let across = SKSpriteNode(color: paint,
+                                              size: CGSize(width: City.roadHalf * 2 - 18, height: 9))
+                    across.position = CGPoint(x: cx, y: cy + s * (City.roadHalf + 8))
+                    across.zPosition = 0.6
+                    worldNode.addChild(across)
+
+                    let down = SKSpriteNode(color: paint,
+                                            size: CGSize(width: 9, height: City.roadHalf * 2 - 18))
+                    down.position = CGPoint(x: cx + s * (City.roadHalf + 8), y: cy)
+                    down.zPosition = 0.6
+                    worldNode.addChild(down)
+                }
+
+                let lamp = SKShapeNode(circleOfRadius: 95)
+                lamp.fillColor = SKColor(red: 1, green: 0.85, blue: 0.55, alpha: 1)
+                lamp.strokeColor = .clear
+                lamp.blendMode = .add
+                lamp.alpha = 0
+                lamp.position = CGPoint(x: cx, y: cy)
+                lamp.zPosition = 1.4
+                worldNode.addChild(lamp)
+                lampPools.append(lamp)
+
+                let parity = (i + j) % 2
+                let vDot = makeSignalDot(at: CGPoint(x: cx + City.roadHalf + 10,
+                                                     y: cy + City.roadHalf + 10))
+                signalDotsV[parity].append(vDot)
+                let hDot = makeSignalDot(at: CGPoint(x: cx - City.roadHalf - 10,
+                                                     y: cy - City.roadHalf - 10))
+                signalDotsH[parity].append(hDot)
+            }
+        }
+
         // Blocks: ground plate, then buildings (shadow + body + roof sheen).
         for i in 0..<City.blocksX {
             for j in 0..<City.blocksY {
@@ -192,6 +267,14 @@ final class GameScene: SKScene {
                 plate.position = CGPoint(x: rect.midX, y: rect.midY)
                 plate.zPosition = 1
                 worldNode.addChild(plate)
+
+                // Curb line where the sidewalk meets the road.
+                let curb = SKShapeNode(rect: rect)
+                curb.strokeColor = SKColor(white: 0.78, alpha: 0.35)
+                curb.lineWidth = 3
+                curb.fillColor = .clear
+                curb.zPosition = 1.2
+                worldNode.addChild(curb)
 
                 if city.parkBlocks.contains(key) {
                     scatterTrees(in: rect, count: 6,
@@ -220,6 +303,30 @@ final class GameScene: SKScene {
                     sheen.position = body.position
                     sheen.zPosition = 5.5
                     worldNode.addChild(sheen)
+
+                    // Rooftop clutter — AC units and vents — sells the
+                    // "looking down at a real city" read.
+                    if b.rect.width > 80 && b.rect.height > 80 {
+                        for _ in 0..<rng.int(1, 3) {
+                            let unit = SKSpriteNode(color: SKColor(white: rng.range(0.28, 0.42), alpha: 1),
+                                                    size: CGSize(width: rng.range(12, 26),
+                                                                 height: rng.range(12, 26)))
+                            unit.position = CGPoint(x: rng.range(b.rect.minX + 20, b.rect.maxX - 20),
+                                                    y: rng.range(b.rect.minY + 20, b.rect.maxY - 20))
+                            unit.zPosition = 6.2
+                            worldNode.addChild(unit)
+                        }
+                        if rng.chance(0.5) {
+                            let vent = SKShapeNode(circleOfRadius: rng.range(4, 8))
+                            vent.fillColor = SKColor(white: 0.22, alpha: 1)
+                            vent.strokeColor = SKColor(white: 0.5, alpha: 0.6)
+                            vent.lineWidth = 1.5
+                            vent.position = CGPoint(x: rng.range(b.rect.minX + 16, b.rect.maxX - 16),
+                                                    y: rng.range(b.rect.minY + 16, b.rect.maxY - 16))
+                            vent.zPosition = 6.2
+                            worldNode.addChild(vent)
+                        }
+                    }
                 }
             }
         }
@@ -237,6 +344,58 @@ final class GameScene: SKScene {
                                     y: rng.range(rect.minY + 40, rect.maxY - 40))
             tree.zPosition = 6
             worldNode.addChild(tree)
+        }
+    }
+
+    private func makeSignalDot(at point: CGPoint) -> SKShapeNode {
+        let base = SKShapeNode(rectOf: CGSize(width: 14, height: 14), cornerRadius: 3)
+        base.fillColor = SKColor(white: 0.10, alpha: 1)
+        base.strokeColor = SKColor(white: 0.35, alpha: 1)
+        base.lineWidth = 1.5
+        base.position = point
+        base.zPosition = 6.5
+        worldNode.addChild(base)
+
+        let dot = SKShapeNode(circleOfRadius: 4.5)
+        dot.fillColor = SKColor(red: 0.95, green: 0.2, blue: 0.2, alpha: 1)
+        dot.strokeColor = .clear
+        dot.zPosition = 0.1
+        base.addChild(dot)
+        return dot
+    }
+
+    /// 16-second signal cycle; alternate intersections run half a cycle out
+    /// of phase, which produces a rough green wave through the grid.
+    /// 0 = green, 1 = yellow, 2 = red — for traffic on the vertical axis.
+    private func verticalSignal(parity: Int) -> Int {
+        let t = (clock + TimeInterval(parity) * 8).truncatingRemainder(dividingBy: 16)
+        if t < 7 { return 0 }
+        if t < 8 { return 1 }
+        return 2
+    }
+
+    private func horizontalSignal(parity: Int) -> Int {
+        let t = (clock + TimeInterval(parity) * 8).truncatingRemainder(dividingBy: 16)
+        if t < 8 { return 2 }
+        if t < 15 { return 0 }
+        return 1
+    }
+
+    private func updateSignals() {
+        let key = verticalSignal(parity: 0) + 3 * horizontalSignal(parity: 0)
+            + 9 * verticalSignal(parity: 1) + 27 * horizontalSignal(parity: 1)
+        guard key != lastSignalKey else { return }
+        lastSignalKey = key
+        let colors: [SKColor] = [
+            SKColor(red: 0.25, green: 0.9, blue: 0.4, alpha: 1),
+            SKColor(red: 1.0, green: 0.85, blue: 0.2, alpha: 1),
+            SKColor(red: 0.95, green: 0.2, blue: 0.2, alpha: 1),
+        ]
+        for parity in 0...1 {
+            let vColor = colors[verticalSignal(parity: parity)]
+            for dot in signalDotsV[parity] { dot.fillColor = vColor }
+            let hColor = colors[horizontalSignal(parity: parity)]
+            for dot in signalDotsH[parity] { dot.fillColor = hColor }
         }
     }
 
@@ -360,6 +519,9 @@ final class GameScene: SKScene {
         if let car = playerCar {
             car.driver = .parked
             car.speed = 0
+            car.velocity = .zero
+            car.steerVisual = 0
+            car.setBraking(false)
             car.setSiren(false)
             parked.append(car)
             playerCar = nil
@@ -426,6 +588,10 @@ final class GameScene: SKScene {
         parked.removeAll { $0 === car }
         car.driver = .player
         car.brakeTimer = 0
+        car.setBraking(false)
+        // Hand the tyre model whatever momentum the car already had.
+        car.velocity = CGVector(dx: cos(car.heading) * car.speed,
+                                dy: sin(car.heading) * car.speed)
         playerCar = car
         playerNode.isHidden = true
         playerPos = car.position
@@ -434,6 +600,9 @@ final class GameScene: SKScene {
     private func exitVehicle() {
         guard let car = playerCar else { return }
         car.speed = 0
+        car.velocity = .zero
+        car.steerVisual = 0
+        car.setBraking(false)
         car.driver = .parked
         parked.append(car)
         playerCar = nil
@@ -490,6 +659,7 @@ final class GameScene: SKScene {
         for ped in peds where ped.state != .down {
             if distance(ped.position, playerPos) < range {
                 ped.knockDown()
+                SoundEngine.shared.thud()
                 dropCash(at: ped.position, amount: ped.wallet)
                 scatterPeds(from: playerPos, radius: 200)
                 if rng.chance(0.5) { crime(1, note: "Assault reported!") }
@@ -500,6 +670,7 @@ final class GameScene: SKScene {
 
     private func honk() {
         guard let car = playerCar else { return }
+        SoundEngine.shared.horn()
         scatterPeds(from: car.position, radius: 220)
         let ring = SKShapeNode(circleOfRadius: 30)
         ring.strokeColor = SKColor(white: 1, alpha: 0.6)
@@ -609,13 +780,68 @@ final class GameScene: SKScene {
         updatePeds(dt)
         updateCamera(dt, playing: playing)
         updateDayNight(dt)
+        updateWeather(dt)
+        updateSignals()
+        syncAudio(playing: playing)
         syncHUD(dt)
+    }
+
+    private func updateWeather(_ dt: CGFloat) {
+        weatherTimer -= TimeInterval(dt)
+        guard weatherTimer <= 0 else { return }
+        raining.toggle()
+        weatherTimer = raining ? TimeInterval(rng.range(25, 55))
+                               : TimeInterval(rng.range(60, 150))
+        wetOverlay.run(.fadeAlpha(to: raining ? 0.07 : 0, duration: 2))
+        if raining {
+            let e = SKEmitterNode()
+            e.particleTexture = Self.rainTexture
+            e.particleBirthRate = 550
+            e.particleLifetime = 1.0
+            e.particleSpeed = 1300
+            e.particleSpeedRange = 250
+            e.emissionAngle = -.pi / 2 - 0.10
+            e.particlePositionRange = CGVector(dx: 1900, dy: 0)
+            e.particleAlpha = 0.4
+            e.particleAlphaRange = 0.2
+            e.zPosition = 148
+            e.position = CGPoint(x: 0, y: 620)
+            uiNode.addChild(e)
+            rainEmitter = e
+        } else if let e = rainEmitter {
+            e.particleBirthRate = 0
+            e.run(.sequence([.wait(forDuration: 1.5), .removeFromParent()]))
+            rainEmitter = nil
+        }
+    }
+
+    private func syncAudio(playing: Bool) {
+        let sound = SoundEngine.shared
+        sound.setMaster(playing ? 1.0 : 0.35)
+        if let car = playerCar, playing, !car.disabled {
+            let frac = min(1, abs(car.speed) / car.kind.maxSpeed)
+            sound.setEngine(level: 0.25 + 0.75 * Float(frac), hz: 58 + 190 * Float(frac))
+        } else {
+            sound.setEngine(level: 0, hz: 70)
+        }
+        sound.setScreech(playerCar != nil ? Float(min(1, playerSlip / 220)) : 0)
+        var sirenLevel: Float = 0
+        for cop in cops where !cop.disabled {
+            let d = distance(cop.position, playerPos)
+            sirenLevel = max(sirenLevel, Float(max(0, 1 - d / 1500)))
+        }
+        sound.setSiren(sirenLevel)
+        sound.setRain(raining ? 0.8 : 0)
     }
 
     // MARK: - Player: on foot
 
     private func updateOnFoot(_ dt: CGFloat) {
-        guard stick.isActive, stick.magnitude > 0.12 else { return }
+        let moving = stick.isActive && stick.magnitude > 0.12
+        for foot in playerNode.children where foot.name == "foot" {
+            foot.isPaused = !moving
+        }
+        guard moving else { return }
         playerHeading = stick.angle
         let maxRun = character == .mia ? GameConfig.runSpeedMia : GameConfig.runSpeedJax
         let step = maxRun * stick.magnitude * dt
@@ -654,50 +880,13 @@ final class GameScene: SKScene {
         guard let car = playerCar else { return }
         let kind = car.kind
 
-        if stick.isActive && stick.magnitude > 0.1 && !car.disabled {
-            let desired = stick.angle
-            let diff = shortestAngle(desired - car.heading)
-            if abs(diff) > 2.35 && car.speed < 60 {
-                // Pulling hard against the nose at low speed = reverse.
-                car.speed = approach(car.speed, -kind.maxSpeed * 0.35,
-                                     kind.accel * 1.1, dt)
-                car.heading -= clampMag(diff, 1.6 * dt) * 0.6
-            } else {
-                let target = kind.maxSpeed * stick.magnitude
-                let rate = target < car.speed ? kind.accel * 2.6 : kind.accel
-                car.speed = approach(car.speed, target, rate, dt)
-                let agility = 0.35 + 0.65 * min(1, abs(car.speed) / (kind.maxSpeed * 0.55))
-                car.heading += clampMag(diff, kind.turnRate * agility * dt)
-            }
-        } else {
-            car.speed = approach(car.speed, 0, 340, dt)
+        var desired: CGFloat?
+        var throttle: CGFloat = 0
+        if stick.isActive && stick.magnitude > 0.1 {
+            desired = stick.angle
+            throttle = stick.magnitude
         }
-        if car.disabled { car.speed = approach(car.speed, 0, 500, dt) }
-
-        let delta = CGVector(dx: cos(car.heading) * car.speed * dt,
-                             dy: sin(car.heading) * car.speed * dt)
-        let (moved, hitWall) = moveCircle(car.position, delta: delta,
-                                          radius: kind.width * 0.62)
-        car.position = clampToWorld(moved, margin: 50)
-
-        if hitWall && abs(car.speed) > 170 {
-            car.applyDamage((abs(car.speed) - 120) * 0.06)
-            shakeCamera(intensity: min(10, abs(car.speed) / 60))
-            car.speed *= -0.25
-        } else if hitWall {
-            car.speed = 0
-        }
-
-        // Nose probe stops long cars from clipping corners nose-first.
-        let nose = CGPoint(x: car.position.x + cos(car.heading) * (kind.length / 2 - 6),
-                           y: car.position.y + sin(car.heading) * (kind.length / 2 - 6))
-        for rect in city.collisionRects(near: nose) where rect.contains(nose) {
-            if abs(car.speed) > 170 { car.applyDamage((abs(car.speed) - 120) * 0.05) }
-            car.position = CGPoint(x: car.position.x - cos(car.heading) * abs(car.speed) * dt * 1.2,
-                                   y: car.position.y - sin(car.heading) * abs(car.speed) * dt * 1.2)
-            car.speed = -car.speed * 0.2
-            break
-        }
+        playerSlip = stepVehicle(car, desiredHeading: desired, throttle: throttle, dt: dt)
 
         // Bumping the population.
         for other in traffic {
@@ -715,12 +904,153 @@ final class GameScene: SKScene {
             if abs(car.speed) > 90 &&
                 distance(ped.position, car.position) < kind.length * 0.45 {
                 ped.knockDown()
+                SoundEngine.shared.thud()
                 dropCash(at: ped.position, amount: ped.wallet / 2)
                 crime(1, note: "Hit and run!")
             }
         }
 
         playerPos = car.position
+    }
+
+    /// Integrates one vehicle through the tyre model: engine power curve,
+    /// braking, aero drag, and — the part that makes it feel real — lateral
+    /// grip, so momentum carries and the tail steps out when pushed (more so
+    /// on wet roads). Returns the lateral slip, for skids and screech.
+    @discardableResult
+    private func stepVehicle(_ car: Car, desiredHeading: CGFloat?,
+                             throttle: CGFloat, dt: CGFloat) -> CGFloat {
+        let kind = car.kind
+        let fwd = CGVector(dx: cos(car.heading), dy: sin(car.heading))
+        let right = CGVector(dx: fwd.dy, dy: -fwd.dx)
+        var vF = car.velocity.dx * fwd.dx + car.velocity.dy * fwd.dy
+        var vLat = car.velocity.dx * right.dx + car.velocity.dy * right.dy
+        var braking = false
+
+        if let desired = desiredHeading, !car.disabled {
+            let diff = shortestAngle(desired - car.heading)
+            if abs(diff) > 2.35 && vF < 40 {
+                // Pulling against the nose while slow: back up.
+                vF = approach(vF, -kind.maxSpeed * 0.3, kind.accel * 0.9, dt)
+                car.heading -= clampMag(diff, 1.5 * dt) * 0.5
+                car.steerVisual = 0
+            } else {
+                if abs(diff) > 2.35 {
+                    vF = approach(vF, 0, kind.accel * 3.0, dt)          // hard brake
+                    braking = true
+                } else {
+                    let want = kind.maxSpeed * throttle
+                    if want < vF - 15 {
+                        vF = approach(vF, want, kind.accel * 2.4, dt)   // foot on the brake
+                        braking = true
+                    } else {
+                        // Engine power fades as revs climb.
+                        let power = kind.accel * max(0.28, 1 - max(0, vF) / kind.maxSpeed)
+                        vF = approach(vF, want, power, dt)
+                    }
+                }
+                let speedFactor = min(1, abs(vF) / (kind.maxSpeed * 0.45))
+                car.heading += clampMag(diff, kind.turnRate * (0.30 + 0.70 * speedFactor) * dt)
+                    * (vF >= -5 ? 1 : -1)
+                car.steerVisual = clampMag(diff, 0.5)
+            }
+        } else {
+            vF = approach(vF, 0, 240, dt)
+            car.steerVisual *= max(0, 1 - 6 * dt)
+        }
+        if car.disabled {
+            vF = approach(vF, 0, 420, dt)
+            braking = false
+        }
+
+        // Aero drag + rolling resistance; tyres bleed sideways velocity —
+        // slower on a wet road, which is where the drifting comes from.
+        vF -= vF * 0.20 * dt
+        let grip: CGFloat = raining ? 3.4 : 7.5
+        vLat *= max(0, 1 - grip * dt)
+
+        car.velocity = CGVector(dx: fwd.dx * vF + right.dx * vLat,
+                                dy: fwd.dy * vF + right.dy * vLat)
+        car.speed = vF
+
+        let delta = CGVector(dx: car.velocity.dx * dt, dy: car.velocity.dy * dt)
+        let (moved, hitWall) = moveCircle(car.position, delta: delta,
+                                          radius: kind.width * 0.62)
+        car.position = clampToWorld(moved, margin: 50)
+
+        if hitWall {
+            let v = hypot(car.velocity.dx, car.velocity.dy)
+            if v > 170 {
+                car.applyDamage((v - 120) * 0.06)
+                if car === playerCar {
+                    shakeCamera(intensity: min(10, v / 60))
+                    SoundEngine.shared.crash(Float(min(1, v / 500)))
+                }
+                car.velocity = CGVector(dx: -car.velocity.dx * 0.25,
+                                        dy: -car.velocity.dy * 0.25)
+                car.speed = -vF * 0.25
+            } else {
+                car.velocity = .zero
+                car.speed = 0
+            }
+        }
+
+        // Nose probe stops long cars from clipping corners nose-first.
+        let nose = CGPoint(x: car.position.x + fwd.dx * (kind.length / 2 - 6),
+                           y: car.position.y + fwd.dy * (kind.length / 2 - 6))
+        for rect in city.collisionRects(near: nose) where rect.contains(nose) {
+            let v = abs(car.speed)
+            if v > 170 {
+                car.applyDamage((v - 120) * 0.05)
+                if car === playerCar { SoundEngine.shared.crash(Float(min(1, v / 500))) }
+            }
+            car.position = CGPoint(x: car.position.x - fwd.dx * v * dt * 1.2,
+                                   y: car.position.y - fwd.dy * v * dt * 1.2)
+            car.speed = -car.speed * 0.2
+            car.velocity = CGVector(dx: fwd.dx * car.speed, dy: fwd.dy * car.speed)
+            break
+        }
+
+        car.setBraking(braking && abs(vF) > 8)
+
+        // Rubber on the road: sliding tyres and hard stops leave marks.
+        let slip = abs(vLat)
+        if slip > 55 || (braking && abs(vF) > 260) {
+            skidTimer -= TimeInterval(dt)
+            if skidTimer <= 0 {
+                skidTimer = 0.028
+                for side: CGFloat in [-1, 1] {
+                    let p = CGPoint(
+                        x: car.position.x - fwd.dx * car.rearAxleOffset
+                            + right.dx * side * kind.width * 0.32,
+                        y: car.position.y - fwd.dy * car.rearAxleOffset
+                            + right.dy * side * kind.width * 0.32)
+                    dropSkid(at: p, heading: car.heading)
+                }
+            }
+        }
+        return slip
+    }
+
+    /// Round-robin pool of fading tyre marks, capped so the world never
+    /// fills with nodes.
+    private func dropSkid(at p: CGPoint, heading: CGFloat) {
+        let mark: SKSpriteNode
+        if skidPool.count < 240 {
+            mark = SKSpriteNode(color: SKColor(white: 0.05, alpha: 1),
+                                size: CGSize(width: 10, height: 4))
+            mark.zPosition = 1.5
+            worldNode.addChild(mark)
+            skidPool.append(mark)
+        } else {
+            mark = skidPool[skidIndex]
+            skidIndex = (skidIndex + 1) % skidPool.count
+        }
+        mark.removeAllActions()
+        mark.position = p
+        mark.zRotation = heading
+        mark.alpha = 0.35
+        mark.run(.sequence([.wait(forDuration: 4), .fadeOut(withDuration: 4)]))
     }
 
     /// Push two cars apart and damage both; returns true when they touched.
@@ -734,14 +1064,26 @@ final class GameScene: SKScene {
         let ny = (b.position.y - a.position.y) / d
         a.position = CGPoint(x: a.position.x - nx * overlap, y: a.position.y - ny * overlap)
         b.position = CGPoint(x: b.position.x + nx * overlap, y: b.position.y + ny * overlap)
-        let impact = abs(a.speed - b.speed)
+        let rel = CGVector(dx: a.velocity.dx - b.velocity.dx,
+                           dy: a.velocity.dy - b.velocity.dy)
+        let impact = max(abs(a.speed - b.speed), hypot(rel.dx, rel.dy))
         if impact > 120 {
             a.applyDamage(impact * 0.035)
             b.applyDamage(impact * 0.05)
-            shakeCamera(intensity: min(8, impact / 90))
+            if a === playerCar || b === playerCar {
+                shakeCamera(intensity: min(8, impact / 90))
+                SoundEngine.shared.crash(Float(min(1, impact / 600)))
+            }
         }
-        a.speed *= 0.72
-        b.speed *= 0.72
+        for car in [a, b] {
+            car.speed *= 0.72
+            car.velocity = CGVector(dx: car.velocity.dx * 0.72, dy: car.velocity.dy * 0.72)
+        }
+        // Nudge velocities apart so tangled cars separate cleanly.
+        a.velocity = CGVector(dx: a.velocity.dx - nx * impact * 0.18,
+                              dy: a.velocity.dy - ny * impact * 0.18)
+        b.velocity = CGVector(dx: b.velocity.dx + nx * impact * 0.18,
+                              dy: b.velocity.dy + ny * impact * 0.18)
         return true
     }
 
@@ -778,15 +1120,33 @@ final class GameScene: SKScene {
         let horizontal = car.dirIndex % 2 == 0
         car.brakeTimer = max(0, car.brakeTimer - TimeInterval(dt))
 
+        let along = horizontal ? car.position.x : car.position.y
+        let crossCoord = City.roadCenter(car.crossIndex)
+        let step = (car.dirIndex == 0 || car.dirIndex == 1) ? 1 : -1
+
         // Brake for anything ahead in the lane.
         var blocked = car.brakeTimer > 0
         if !blocked {
             let lookAhead: CGFloat = 120 + car.speed * 0.3
             blocked = obstacleAhead(of: car, dir: dir, distance: lookAhead)
         }
-        let cruise = car.kind.maxSpeed * 0.5
+        // Obey the signals: hold at the stop line on red or yellow.
+        if !blocked {
+            let parity = (car.crossIndex + car.roadIndex) % 2
+            let signal = horizontal ? horizontalSignal(parity: parity)
+                                    : verticalSignal(parity: parity)
+            if signal != 0 {
+                let stopCoord = crossCoord - CGFloat(step) * (City.roadHalf + 16)
+                let distToStop = (stopCoord - along) * CGFloat(step)
+                if distToStop > -8 && distToStop < 150 { blocked = true }
+            }
+        }
+
+        // Drivers slow down in the rain.
+        let cruise = car.kind.maxSpeed * (raining ? 0.42 : 0.5)
         car.speed = approach(car.speed, blocked ? 0 : cruise,
                              blocked ? 600 : car.kind.accel * 0.7, dt)
+        car.setBraking(blocked && car.speed > 4)
 
         // Advance along the axis; ease laterally onto the lane centre.
         var p = car.position
@@ -799,16 +1159,15 @@ final class GameScene: SKScene {
             p.x += (laneTarget - p.x) * min(1, 6 * dt)
         }
         car.position = p
+        car.velocity = CGVector(dx: dir.dx * car.speed, dy: dir.dy * car.speed)
 
         // Face the direction of travel, smoothly.
         let want = Self.dirAngles[car.dirIndex]
         car.heading += clampMag(shortestAngle(want - car.heading), 7 * dt)
 
         // Intersection reached? Decide where to go next.
-        let along = horizontal ? p.x : p.y
-        let crossCoord = City.roadCenter(car.crossIndex)
-        let step = (car.dirIndex == 0 || car.dirIndex == 1) ? 1 : -1
-        if (step > 0 && along >= crossCoord) || (step < 0 && along <= crossCoord) {
+        let newAlong = horizontal ? p.x : p.y
+        if (step > 0 && newAlong >= crossCoord) || (step < 0 && newAlong <= crossCoord) {
             decideTurn(for: car, step: step)
         }
     }
@@ -955,7 +1314,13 @@ final class GameScene: SKScene {
             switch ped.state {
             case .walk:
                 if ped.stateTimer <= 0 {
-                    ped.heading = rng.range(-.pi, .pi)
+                    // People mostly follow the street grid, like sidewalks.
+                    if rng.chance(0.75) {
+                        let cardinal: [CGFloat] = [0, .pi / 2, .pi, -.pi / 2]
+                        ped.heading = cardinal[rng.int(0, 3)] + rng.range(-0.12, 0.12)
+                    } else {
+                        ped.heading = rng.range(-.pi, .pi)
+                    }
                     ped.stateTimer = TimeInterval(rng.range(1.5, 5))
                 }
                 stepPed(ped, speed: ped.walkSpeed, dt: dt)
@@ -1136,24 +1501,15 @@ final class GameScene: SKScene {
         }
 
         let desired = atan2(target.y - cop.position.y, target.x - cop.position.x)
-        let diff = shortestAngle(desired - cop.heading)
 
         if cop.reverseTimer > 0 {
             cop.reverseTimer -= TimeInterval(dt)
-            cop.speed = approach(cop.speed, -140, 500, dt)
-            cop.heading -= clampMag(diff, 1.4 * dt)
+            // Aiming opposite the nose makes the tyre model back up.
+            stepVehicle(cop, desiredHeading: cop.heading + .pi, throttle: 0.4, dt: dt)
         } else {
-            cop.speed = approach(cop.speed, targetSpeed * (abs(diff) > 1.9 ? 0.35 : 1), cop.kind.accel, dt)
-            let agility = 0.4 + 0.6 * min(1, abs(cop.speed) / (cop.kind.maxSpeed * 0.5))
-            cop.heading += clampMag(diff, cop.kind.turnRate * agility * dt)
+            stepVehicle(cop, desiredHeading: desired,
+                        throttle: min(1, targetSpeed / cop.kind.maxSpeed), dt: dt)
         }
-
-        let delta = CGVector(dx: cos(cop.heading) * cop.speed * dt,
-                             dy: sin(cop.heading) * cop.speed * dt)
-        let (moved, hitWall) = moveCircle(cop.position, delta: delta,
-                                          radius: cop.kind.width * 0.62)
-        cop.position = clampToWorld(moved, margin: 50)
-        if hitWall { cop.speed *= 0.3 }
 
         // Unstick: reversing for a moment beats spinning wheels forever.
         if abs(cop.speed) < 30 && targetSpeed > 60 && cop.reverseTimer <= 0 {
@@ -1208,6 +1564,7 @@ final class GameScene: SKScene {
         tracer.zPosition = 11
         worldNode.addChild(tracer)
         tracer.run(.sequence([.fadeOut(withDuration: 0.12), .removeFromParent()]))
+        SoundEngine.shared.shot()
 
         if rng.chance(0.65) {
             if let car = playerCar {
@@ -1563,7 +1920,18 @@ final class GameScene: SKScene {
     private func updateDayNight(_ dt: CGFloat) {
         dayClock += TimeInterval(dt)
         let phase = sin(CGFloat(dayClock) * 2 * .pi / 420)     // 7-minute cycle
-        nightOverlay.alpha = max(0, -phase) * 0.32
+        nightFactor = max(0, -phase)
+        nightOverlay.alpha = nightFactor * 0.32
+
+        // Street lamps and headlights track the dark; throttled, since it
+        // touches every car and intersection.
+        nightApplyCooldown -= TimeInterval(dt)
+        if nightApplyCooldown <= 0 {
+            nightApplyCooldown = 0.2
+            let lampAlpha = nightFactor * 0.11
+            for lamp in lampPools { lamp.alpha = lampAlpha }
+            for car in allCars() { car.setNight(nightFactor) }
+        }
     }
 
     private func shakeCamera(intensity: CGFloat) {

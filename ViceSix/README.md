@@ -36,6 +36,29 @@ the city is generated procedurally from a fixed seed).
   with district colours and cop/objective blips, off-screen objective arrow,
   floating cash pickups, sirens, horn that scatters crowds.
 
+## Realism layer
+
+- **Tyre-model driving physics** — every powered car integrates a real
+  velocity vector with engine power curves, braking, aero drag, and lateral
+  grip: momentum carries through corners, the tail steps out under hard
+  cornering, and sliding tyres leave fading **skid marks** and screech.
+- **Working traffic signals** — every intersection runs a staggered
+  green/yellow/red cycle (a rough green wave). Traffic holds at the stop
+  line with **brake lights** flaring; you're free to run reds.
+- **Weather** — rain fronts roll through: rain streaks, a wet sheen,
+  drivers slow down, and road grip genuinely drops (drifts get long).
+- **Night** — headlight cones on every car and warm street-lamp pools fade
+  in with the 7-minute day/night cycle.
+- **Damage you can see** — dents appear as a car wears down, the windshield
+  cracks near the end, then the engine smokes and dies.
+- **Street texture** — crosswalks, curb lines, side mirrors, steering front
+  wheels, rooftop AC units and vents, and pedestrians with striding feet
+  who mostly keep to the street grid.
+- **Fully synthesized audio, zero assets** — engine note that rises with
+  revs, tyre screech, doppler-ish siren wail, rain bed, horn, gunshots and
+  crash thumps are all rendered sample-by-sample by one `AVAudioSourceNode`
+  (`SoundEngine.swift`).
+
 ## Controls
 
 - **Left half of the screen:** floating joystick — walk on foot; in a car it
@@ -65,6 +88,7 @@ the city is generated procedurally from a fixed seed).
 | `Entities.swift` | Car catalog & car/ped/avatar/marker node factories |
 | `Missions.swift` | The VI-mission story definitions |
 | `Joystick.swift` | Floating touch joystick |
+| `SoundEngine.swift` | Sample-level synthesized audio (engine, siren, rain, impacts) |
 
 Tune the city in `City.swift` (grid size, districts), the driving feel in
 `CarCatalog` (`Entities.swift`), and the police pressure in `GameConfig`
