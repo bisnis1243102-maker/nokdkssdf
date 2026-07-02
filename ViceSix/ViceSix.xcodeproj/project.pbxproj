@@ -9,27 +9,29 @@
 /* Begin PBXBuildFile section */
 		6B0000000000000000000001 /* ViceSixApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000001 /* ViceSixApp.swift */; };
 		6B0000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000002 /* ContentView.swift */; };
-		6B0000000000000000000003 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000003 /* GameScene.swift */; };
+		6B0000000000000000000003 /* GameController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000003 /* GameController.swift */; };
 		6B0000000000000000000004 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000004 /* GameState.swift */; };
 		6B0000000000000000000005 /* City.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000005 /* City.swift */; };
-		6B0000000000000000000006 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000006 /* Entities.swift */; };
+		6B0000000000000000000006 /* Entities3D.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000006 /* Entities3D.swift */; };
 		6B0000000000000000000007 /* Missions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000007 /* Missions.swift */; };
-		6B0000000000000000000008 /* Joystick.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000008 /* Joystick.swift */; };
+		6B0000000000000000000008 /* TouchControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000008 /* TouchControls.swift */; };
 		6B0000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000009 /* Assets.xcassets */; };
 		6B000000000000000000000A /* SoundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B000000000000000000000A /* SoundEngine.swift */; };
+		6B000000000000000000000B /* World3D.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B000000000000000000000B /* World3D.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		5B0000000000000000000001 /* ViceSixApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViceSixApp.swift; sourceTree = "<group>"; };
 		5B0000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		5B0000000000000000000003 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
+		5B0000000000000000000003 /* GameController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameController.swift; sourceTree = "<group>"; };
 		5B0000000000000000000004 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
 		5B0000000000000000000005 /* City.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = City.swift; sourceTree = "<group>"; };
-		5B0000000000000000000006 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
+		5B0000000000000000000006 /* Entities3D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities3D.swift; sourceTree = "<group>"; };
 		5B0000000000000000000007 /* Missions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Missions.swift; sourceTree = "<group>"; };
-		5B0000000000000000000008 /* Joystick.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Joystick.swift; sourceTree = "<group>"; };
+		5B0000000000000000000008 /* TouchControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchControls.swift; sourceTree = "<group>"; };
 		5B0000000000000000000009 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5B000000000000000000000A /* SoundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundEngine.swift; sourceTree = "<group>"; };
+		5B000000000000000000000B /* World3D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = World3D.swift; sourceTree = "<group>"; };
 		4B000000000000000000000F /* ViceSix.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ViceSix.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -57,13 +59,14 @@
 			children = (
 				5B0000000000000000000001 /* ViceSixApp.swift */,
 				5B0000000000000000000002 /* ContentView.swift */,
-				5B0000000000000000000003 /* GameScene.swift */,
+				5B0000000000000000000003 /* GameController.swift */,
 				5B0000000000000000000004 /* GameState.swift */,
 				5B0000000000000000000005 /* City.swift */,
-				5B0000000000000000000006 /* Entities.swift */,
+				5B0000000000000000000006 /* Entities3D.swift */,
 				5B0000000000000000000007 /* Missions.swift */,
-				5B0000000000000000000008 /* Joystick.swift */,
+				5B0000000000000000000008 /* TouchControls.swift */,
 				5B000000000000000000000A /* SoundEngine.swift */,
+				5B000000000000000000000B /* World3D.swift */,
 				5B0000000000000000000009 /* Assets.xcassets */,
 			);
 			path = ViceSix;
@@ -146,13 +149,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6B0000000000000000000003 /* GameScene.swift in Sources */,
+				6B0000000000000000000003 /* GameController.swift in Sources */,
 				6B0000000000000000000004 /* GameState.swift in Sources */,
 				6B0000000000000000000005 /* City.swift in Sources */,
-				6B0000000000000000000006 /* Entities.swift in Sources */,
+				6B0000000000000000000006 /* Entities3D.swift in Sources */,
 				6B0000000000000000000007 /* Missions.swift in Sources */,
-				6B0000000000000000000008 /* Joystick.swift in Sources */,
+				6B0000000000000000000008 /* TouchControls.swift in Sources */,
 				6B000000000000000000000A /* SoundEngine.swift in Sources */,
+				6B000000000000000000000B /* World3D.swift in Sources */,
 				6B0000000000000000000002 /* ContentView.swift in Sources */,
 				6B0000000000000000000001 /* ViceSixApp.swift in Sources */,
 			);

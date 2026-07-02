@@ -1,49 +1,52 @@
 import SwiftUI
-import SpriteKit
+import SceneKit
 
 struct ContentView: View {
     @StateObject private var gameState = GameState()
-    @State private var scene = GameScene()
+    @State private var controller = GameController()
 
     var body: some View {
         ZStack {
-            SpriteView(scene: configuredScene)
+            SceneView(scene: configuredController.scene,
+                      pointOfView: controller.cameraNode,
+                      options: [.rendersContinuously],
+                      delegate: controller)
                 .ignoresSafeArea()
 
             switch gameState.phase {
             case .menu:
                 MenuView(hasSave: gameState.hasSave,
-                         onContinue: { scene.startGame(newGame: false) },
-                         onNewGame: { scene.startGame(newGame: true) })
+                         onContinue: { controller.perform(.start(newGame: false)) },
+                         onNewGame: { controller.perform(.start(newGame: true)) })
             case .playing:
-                HUDView(gameState: gameState, scene: scene)
+                HUDView(gameState: gameState, controller: controller)
             case .busted:
                 EndCardView(title: "BUSTED",
                             color: .blue,
                             message: "The VCPD took $\(GameConfig.bustedFine) and your ride.",
                             button: "WALK IT OFF",
-                            action: { scene.respawnAfterArrest() })
+                            action: { controller.perform(.respawnArrest) })
             case .wasted:
                 EndCardView(title: "WASTED",
                             color: .red,
                             message: "You woke up at Mercy General, $\(GameConfig.wastedFee) lighter.",
                             button: "GET UP",
-                            action: { scene.respawnAfterWasted() })
+                            action: { controller.perform(.respawnWasted) })
             case .finale:
                 EndCardView(title: "VI / VI",
                             color: .cyan,
                             message: "All six missions passed. Port Leon is yours, \(gameState.character.rawValue).",
                             button: "KEEP CRUISING",
-                            action: { scene.keepRoaming() })
+                            action: { controller.perform(.keepRoaming) })
             }
         }
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
     }
 
-    private var configuredScene: GameScene {
-        scene.gameState = gameState
-        return scene
+    private var configuredController: GameController {
+        controller.gameState = gameState
+        return controller
     }
 }
 
@@ -51,7 +54,7 @@ struct ContentView: View {
 
 private struct HUDView: View {
     @ObservedObject var gameState: GameState
-    let scene: GameScene
+    let controller: GameController
 
     var body: some View {
         ZStack {
@@ -69,7 +72,6 @@ private struct HUDView: View {
 
                     Spacer()
 
-                    // Mission banner / objective, centre stage.
                     VStack(spacing: 4) {
                         if let banner = gameState.banner {
                             Text(banner)
@@ -128,6 +130,17 @@ private struct HUDView: View {
             }
             .padding(14)
 
+            // The joystick, bottom left.
+            VStack {
+                Spacer()
+                HStack {
+                    JoystickPad(controls: controller.controls)
+                        .padding(.leading, 30)
+                        .padding(.bottom, 26)
+                    Spacer()
+                }
+            }
+
             // Action buttons, bottom right.
             VStack(alignment: .trailing, spacing: 14) {
                 Spacer()
@@ -135,19 +148,19 @@ private struct HUDView: View {
                     if !gameState.inVehicle {
                         ActionButton(symbol: "person.2.fill",
                                      label: gameState.character.other.rawValue) {
-                            scene.swapCharacter()
+                            controller.perform(.swap)
                         }
                     }
                     ActionButton(symbol: gameState.inVehicle
                                     ? "speaker.wave.2.fill" : "hand.raised.fill",
                                  label: gameState.inVehicle ? "HORN" : "PUNCH") {
-                        scene.primaryAction()
+                        controller.perform(.primary)
                     }
                     if gameState.inVehicle || gameState.canEnterVehicle {
                         ActionButton(symbol: "car.fill",
                                      label: gameState.inVehicle ? "EXIT" : "ENTER",
                                      highlighted: true) {
-                            scene.toggleVehicle()
+                            controller.perform(.toggleVehicle)
                         }
                     }
                 }
@@ -220,7 +233,7 @@ private struct MinimapView: View {
 
     var body: some View {
         Canvas { context, size in
-            let s = size.width / model.worldSize
+            let s = size.width / max(1, model.worldSize)
             func map(_ p: CGPoint) -> CGPoint {
                 CGPoint(x: p.x * s, y: size.height - p.y * s)
             }
@@ -249,9 +262,8 @@ private struct MinimapView: View {
                 context.fill(Path(ellipseIn: CGRect(x: p.x - 2.5, y: p.y - 2.5, width: 5, height: 5)),
                              with: .color(.blue))
             }
-            // The player: a little heading triangle.
             let p = map(snapshot.player)
-            let a = -snapshot.heading                    // canvas y is flipped
+            let a = -snapshot.heading
             var tri = Path()
             tri.move(to: CGPoint(x: p.x + cos(a) * 6, y: p.y + sin(a) * 6))
             tri.addLine(to: CGPoint(x: p.x + cos(a + 2.5) * 5, y: p.y + sin(a + 2.5) * 5))
@@ -275,7 +287,7 @@ private struct MenuView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color.black.opacity(0.7), Color.black.opacity(0.25)],
+            LinearGradient(colors: [Color.black.opacity(0.7), Color.black.opacity(0.2)],
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
             VStack(spacing: 18) {
@@ -294,13 +306,13 @@ private struct MenuView: View {
                 }
                 .shadow(color: .pink.opacity(0.6), radius: 16)
 
-                Text("A Port Leon Story")
+                Text("A Port Leon Story — now in 3D")
                     .font(.headline)
                     .foregroundColor(.white.opacity(0.85))
 
                 VStack(spacing: 4) {
-                    Text("Left thumb: move & steer")
-                    Text("Walk into the VI marker to start missions")
+                    Text("Left stick: move & steer (camera relative)")
+                    Text("Walk into the glowing beacon to start missions")
                     Text("Steal cars. Outrun the VCPD. Get paid.")
                 }
                 .font(.subheadline)

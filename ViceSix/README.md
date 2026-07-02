@@ -1,9 +1,10 @@
-# Vice Six — top-down open-world action (iPhone)
+# Vice Six — 3D open-world action (iPhone)
 
-An original, top-down open-world crime game for iOS in the spirit of the
-classic GTA games, built **from scratch** with **SwiftUI + SpriteKit** — no
-third-party dependencies, no asset files (every sprite is drawn in code, and
-the city is generated procedurally from a fixed seed).
+An original **3D** open-world crime game for iOS in the spirit of the modern
+GTA games, built **from scratch** with **SwiftUI + SceneKit** — no
+third-party dependencies, no asset files (every texture is generated in
+code, every model is built from primitives, and the city is generated
+procedurally from a fixed seed).
 
 > "Vice Six" is an original parody title for personal use. It is **not** GTA
 > or GTA VI, is not affiliated with Rockstar Games, and uses no Rockstar
@@ -35,6 +36,22 @@ the city is generated procedurally from a fixed seed).
 - **The details** — day/night cycle, chase camera with speed zoom, minimap
   with district colours and cop/objective blips, off-screen objective arrow,
   floating cash pickups, sirens, horn that scatters crowds.
+
+## The 3D layer
+
+- **Full 3D city** — window-textured towers (up to skyscraper height on the
+  Neon Mile), curb-height block slabs, palm trees, an ocean to the horizon,
+  distance fog, and a real-time sun with shadows.
+- **Chase camera** — third-person camera that hangs behind you on foot and
+  behind the car at speed, with an FOV kick as you accelerate; the stick is
+  camera-relative like any modern console game.
+- **Night in 3D** — the sun sets, thousands of tower windows light up
+  (emission maps), street lamps and signal bulbs glow, headlight beams
+  switch on, and your car casts a real spotlight on the road.
+- **3D cars & people** — wheels that spin with road speed and steer with
+  the front axle, brake lights, siren light bars, smoke from wrecked
+  engines; pedestrians and both leads are articulated figures with a
+  procedural walk cycle.
 
 ## Realism layer
 
@@ -82,12 +99,13 @@ the city is generated procedurally from a fixed seed).
 |------|----------------|
 | `ViceSixApp.swift` | App entry point |
 | `ContentView.swift` | SwiftUI HUD, minimap, menus, BUSTED/WASTED cards |
-| `GameScene.swift` | The whole simulation: player, driving, traffic, peds, police, wanted, missions, camera |
+| `GameController.swift` | The whole simulation and render loop: player, driving, traffic, peds, police, wanted, missions, camera, day/night |
+| `World3D.swift` | Procedural textures + the static 3D city build |
+| `Entities3D.swift` | Car catalog & 3D car/person/marker builders |
 | `GameState.swift` | Observable HUD state + gameplay constants |
-| `City.swift` | Seeded procedural city: districts, blocks, buildings, landmarks |
-| `Entities.swift` | Car catalog & car/ped/avatar/marker node factories |
+| `City.swift` | Seeded procedural city layout: districts, blocks, buildings, landmarks |
 | `Missions.swift` | The VI-mission story definitions |
-| `Joystick.swift` | Floating touch joystick |
+| `TouchControls.swift` | On-screen joystick |
 | `SoundEngine.swift` | Sample-level synthesized audio (engine, siren, rain, impacts) |
 
 Tune the city in `City.swift` (grid size, districts), the driving feel in
