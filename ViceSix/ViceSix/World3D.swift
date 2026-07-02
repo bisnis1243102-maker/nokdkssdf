@@ -238,7 +238,11 @@ enum World3D {
     static func build(city: City, into scene: SCNScene) -> WorldHandles {
         var handles = WorldHandles()
         var rng = SeededRandom(seed: 90210)
-        let root = scene.rootNode
+        let sceneRoot = scene.rootNode
+        // Everything static goes into this container and is flattened into
+        // a handful of draw calls at the end — the difference between a
+        // stuttering city and a smooth one.
+        let root = SCNNode()
         let world = City.worldSize
 
         func repeatingMaterial(_ img: UIImage, tiles: CGFloat) -> SCNMaterial {
@@ -264,7 +268,7 @@ enum World3D {
         let domeNode = SCNNode(geometry: dome)
         domeNode.position = SCNVector3(Float(world / 2), 0, Float(world / 2))
         domeNode.renderingOrder = -1000
-        root.addChildNode(domeNode)
+        sceneRoot.addChildNode(domeNode)
         scene.lightingEnvironment.contents = skyImage
         scene.lightingEnvironment.intensity = 1.2
 
@@ -278,8 +282,8 @@ enum World3D {
         ocean.materials = [oceanMat]
         let oceanNode = SCNNode(geometry: ocean)
         oceanNode.eulerAngles.x = -.pi / 2
-        oceanNode.position = SCNVector3(Float(world / 2), -4, Float(world / 2))
-        root.addChildNode(oceanNode)
+        oceanNode.position = SCNVector3(Float(world / 2), -6, Float(world / 2))
+        sceneRoot.addChildNode(oceanNode)
 
         let shimmer = SCNPlane(width: 17000, height: 17000)
         let shimmerMat = SCNMaterial()
@@ -293,18 +297,19 @@ enum World3D {
         shimmer.materials = [shimmerMat]
         let shimmerNode = SCNNode(geometry: shimmer)
         shimmerNode.eulerAngles.x = -.pi / 2
-        shimmerNode.position = SCNVector3(Float(world / 2), -3, Float(world / 2))
+        shimmerNode.position = SCNVector3(Float(world / 2), -4.5, Float(world / 2))
         shimmerNode.runAction(.repeatForever(.sequence([
             .moveBy(x: 60, y: 0, z: 40, duration: 7),
             .moveBy(x: -60, y: 0, z: -40, duration: 7),
         ])))
-        root.addChildNode(shimmerNode)
+        sceneRoot.addChildNode(shimmerNode)
 
-        // Beach ring under the whole island.
+        // Beach ring under the whole island — its top sits clearly below
+        // the asphalt so the two surfaces never fight over a pixel.
         let beach = SCNBox(width: world + 500, height: 6, length: world + 500, chamferRadius: 40)
         beach.materials = [repeatingMaterial(sandTexture(), tiles: 30)]
         let beachNode = SCNNode(geometry: beach)
-        beachNode.position = SCNVector3(Float(world / 2), -3, Float(world / 2))
+        beachNode.position = SCNVector3(Float(world / 2), -4.2, Float(world / 2))
         root.addChildNode(beachNode)
 
         // Asphalt sheet: the roads are simply where blocks aren't. The
@@ -326,14 +331,14 @@ enum World3D {
             let c = Float(City.roadCenter(k))
             for vertical in [true, false] {
                 let stripe = SCNBox(width: vertical ? 2.4 : world - 200,
-                                    height: 0.5,
+                                    height: 0.8,
                                     length: vertical ? world - 200 : 2.4,
                                     chamferRadius: 0)
                 stripe.materials = [paint]
                 let node = SCNNode(geometry: stripe)
                 node.position = vertical
-                    ? SCNVector3(c, 0.3, Float(world / 2))
-                    : SCNVector3(Float(world / 2), 0.3, c)
+                    ? SCNVector3(c, 0.6, Float(world / 2))
+                    : SCNVector3(Float(world / 2), 0.6, c)
                 root.addChildNode(node)
             }
         }
@@ -511,6 +516,13 @@ enum World3D {
 
         buildIntersections(city: city, root: root, handles: &handles)
         buildLandmarkMarkers(city: city, root: root)
+
+        // Collapse thousands of static nodes into one merged mesh per
+        // material — the frame rate fix. Shared materials keep working, so
+        // night windows, lamps and signal bulbs still animate.
+        let flattened = root.flattenedClone()
+        flattened.name = "staticCity"
+        sceneRoot.addChildNode(flattened)
         return handles
     }
 
@@ -630,26 +642,27 @@ enum World3D {
                 glow.materials = [handles.lampGlowMaterial]
                 let glowNode = SCNNode(geometry: glow)
                 glowNode.eulerAngles.x = -.pi / 2
-                glowNode.position = SCNVector3(cx, 0.6, cz)
+                glowNode.position = SCNVector3(cx, 1.6, cz)
                 root.addChildNode(glowNode)
 
-                // Crosswalk paint across each approach.
+                // Crosswalk paint across each approach, raised well clear
+                // of the asphalt so the depth buffer never flickers.
                 for s: Float in [-1, 1] {
                     let across = SCNBox(width: CGFloat(City.roadHalf * 2 - 18),
-                                        height: 0.4, length: 10, chamferRadius: 0)
+                                        height: 0.7, length: 10, chamferRadius: 0)
                     across.materials = [crosswalkMat]
                     let acrossNode = SCNNode(geometry: across)
-                    acrossNode.position = SCNVector3(cx, 0.4,
+                    acrossNode.position = SCNVector3(cx, 0.9,
                                                      cz + s * Float(City.roadHalf + 8))
                     root.addChildNode(acrossNode)
 
-                    let down = SCNBox(width: 10, height: 0.4,
+                    let down = SCNBox(width: 10, height: 0.7,
                                       length: CGFloat(City.roadHalf * 2 - 18),
                                       chamferRadius: 0)
                     down.materials = [crosswalkMat]
                     let downNode = SCNNode(geometry: down)
                     downNode.position = SCNVector3(cx + s * Float(City.roadHalf + 8),
-                                                   0.4, cz)
+                                                   0.9, cz)
                     root.addChildNode(downNode)
                 }
             }

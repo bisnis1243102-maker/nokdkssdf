@@ -7,6 +7,11 @@ enum DriverKind {
     case parked, npc, player, cop
 }
 
+/// Body silhouette archetypes — each gets its own proportions.
+enum CarBody {
+    case compact, sedan, sports, muscle, van, pickup
+}
+
 /// A model of car. Arcade-tuned, but fed through a proper tyre model.
 /// Distances are world units (the sim runs on the ground plane).
 struct CarKind {
@@ -18,6 +23,7 @@ struct CarKind {
     let turnRate: CGFloat          // radians / second at cruising speed
     let maxHP: CGFloat
     let colors: [UIColor]
+    var bodyStyle: CarBody = .sedan
     var isPolice: Bool = false
     var isTaxi: Bool = false
 }
@@ -28,7 +34,8 @@ enum CarCatalog {
         maxHP: 70,
         colors: [UIColor(red: 0.85, green: 0.35, blue: 0.30, alpha: 1),
                  UIColor(red: 0.35, green: 0.60, blue: 0.85, alpha: 1),
-                 UIColor(red: 0.90, green: 0.80, blue: 0.40, alpha: 1)])
+                 UIColor(red: 0.90, green: 0.80, blue: 0.40, alpha: 1)],
+        bodyStyle: .compact)
 
     static let sedan = CarKind(
         name: "Meridian", length: 92, width: 44, maxSpeed: 430, accel: 320, turnRate: 2.8,
@@ -36,12 +43,14 @@ enum CarCatalog {
         colors: [UIColor(white: 0.85, alpha: 1),
                  UIColor(white: 0.25, alpha: 1),
                  UIColor(red: 0.45, green: 0.30, blue: 0.55, alpha: 1),
-                 UIColor(red: 0.25, green: 0.45, blue: 0.40, alpha: 1)])
+                 UIColor(red: 0.25, green: 0.45, blue: 0.40, alpha: 1)],
+        bodyStyle: .sedan)
 
     static let taxi = CarKind(
         name: "Leon Cab", length: 90, width: 44, maxSpeed: 420, accel: 330, turnRate: 2.9,
         maxHP: 85,
         colors: [UIColor(red: 0.95, green: 0.78, blue: 0.15, alpha: 1)],
+        bodyStyle: .sedan,
         isTaxi: true)
 
     static let van = CarKind(
@@ -49,31 +58,36 @@ enum CarCatalog {
         maxHP: 120,
         colors: [UIColor(white: 0.9, alpha: 1),
                  UIColor(red: 0.55, green: 0.42, blue: 0.30, alpha: 1),
-                 UIColor(red: 0.30, green: 0.42, blue: 0.55, alpha: 1)])
+                 UIColor(red: 0.30, green: 0.42, blue: 0.55, alpha: 1)],
+        bodyStyle: .van)
 
     static let muscle = CarKind(
         name: "Bandito", length: 96, width: 46, maxSpeed: 540, accel: 420, turnRate: 2.9,
         maxHP: 95,
         colors: [UIColor(red: 0.75, green: 0.15, blue: 0.20, alpha: 1),
                  UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1),
-                 UIColor(red: 0.90, green: 0.50, blue: 0.15, alpha: 1)])
+                 UIColor(red: 0.90, green: 0.50, blue: 0.15, alpha: 1)],
+        bodyStyle: .muscle)
 
     static let sports = CarKind(
         name: "Vipera GT", length: 92, width: 44, maxSpeed: 640, accel: 500, turnRate: 3.4,
         maxHP: 80,
         colors: [UIColor(red: 0.95, green: 0.20, blue: 0.55, alpha: 1),
-                 UIColor(red: 0.20, green: 0.85, blue: 0.75, alpha: 1)])
+                 UIColor(red: 0.20, green: 0.85, blue: 0.75, alpha: 1)],
+        bodyStyle: .sports)
 
     static let pickup = CarKind(
         name: "Burro", length: 98, width: 48, maxSpeed: 390, accel: 290, turnRate: 2.5,
         maxHP: 110,
         colors: [UIColor(red: 0.60, green: 0.32, blue: 0.20, alpha: 1),
-                 UIColor(red: 0.35, green: 0.45, blue: 0.30, alpha: 1)])
+                 UIColor(red: 0.35, green: 0.45, blue: 0.30, alpha: 1)],
+        bodyStyle: .pickup)
 
     static let police = CarKind(
         name: "VCPD Interceptor", length: 94, width: 46, maxSpeed: 560, accel: 430,
         turnRate: 3.2, maxHP: 130,
         colors: [UIColor(white: 0.92, alpha: 1)],
+        bodyStyle: .sedan,
         isPolice: true)
 
     /// Weighted mix that spawns as ambient traffic.
@@ -81,8 +95,9 @@ enum CarCatalog {
                                      taxi, taxi, van, muscle, pickup]
 }
 
-/// A 3D car. The simulation runs on the ground plane: 2D sim coordinates
-/// (x, y) render as (x, 0, y), and `heading` rotates about the Y axis.
+/// A 3D car with a proper silhouette: chassis, hood and trunk decks, a
+/// glass greenhouse with a painted roof, arches, grille, plates, exhausts.
+/// The sim runs on the ground plane: (x, y) renders as (x, 0, y).
 final class Car3D: SCNNode {
     let kind: CarKind
     var hp: CGFloat
@@ -92,7 +107,6 @@ final class Car3D: SCNNode {
         didSet { eulerAngles.y = Float(-heading) }
     }
     var driver: DriverKind = .npc
-    /// Ground-plane position in sim coordinates.
     var planePos: CGPoint {
         get { CGPoint(x: CGFloat(position.x), y: CGFloat(position.z)) }
         set { position = SCNVector3(Float(newValue.x), 0, Float(newValue.y)) }
@@ -142,8 +156,24 @@ final class Car3D: SCNNode {
     private func buildBody(color: UIColor) {
         let L = CGFloat(kind.length), W = CGFloat(kind.width)
 
-        // Two-layer automotive paint: metallic base under a glossy clear
-        // coat, so the sky and city reflect off the body work.
+        // Proportions per silhouette.
+        let baseH: CGFloat        // main body height above the sills
+        let roofH: CGFloat        // greenhouse height
+        let hoodLen: CGFloat
+        let trunkLen: CGFloat
+        let cabinLen: CGFloat
+        switch kind.bodyStyle {
+        case .compact: baseH = 9;  roofH = 11; hoodLen = L * 0.18; trunkLen = L * 0.06; cabinLen = L * 0.52
+        case .sedan:   baseH = 9;  roofH = 10; hoodLen = L * 0.26; trunkLen = L * 0.20; cabinLen = L * 0.40
+        case .sports:  baseH = 8;  roofH = 7;  hoodLen = L * 0.32; trunkLen = L * 0.14; cabinLen = L * 0.40
+        case .muscle:  baseH = 9;  roofH = 9;  hoodLen = L * 0.32; trunkLen = L * 0.16; cabinLen = L * 0.38
+        case .van:     baseH = 12; roofH = 16; hoodLen = L * 0.10; trunkLen = 0;        cabinLen = L * 0.76
+        case .pickup:  baseH = 11; roofH = 11; hoodLen = L * 0.24; trunkLen = 0;        cabinLen = L * 0.28
+        }
+        let sillY: CGFloat = 7                    // bottom of the body, over the wheels
+        let deckY = sillY + baseH                 // top of the main body
+
+        // Two-layer automotive paint with a glossy clear coat.
         bodyMaterial.diffuse.contents = color
         bodyMaterial.lightingModel = .physicallyBased
         bodyMaterial.metalness.contents = 0.85
@@ -151,11 +181,10 @@ final class Car3D: SCNNode {
         bodyMaterial.clearCoat.contents = 1.0
         bodyMaterial.clearCoatRoughness.contents = 0.08
 
-        let body = SCNBox(width: L, height: 13, length: W, chamferRadius: 4)
-        body.materials = [bodyMaterial]
-        let bodyNode = SCNNode(geometry: body)
-        bodyNode.position = SCNVector3(0, 12.5, 0)
-        addChildNode(bodyNode)
+        let trim = SCNMaterial()
+        trim.diffuse.contents = UIColor(white: 0.10, alpha: 1)
+        trim.lightingModel = .physicallyBased
+        trim.roughness.contents = 0.6
 
         let glass = SCNMaterial()
         glass.diffuse.contents = UIColor(red: 0.10, green: 0.14, blue: 0.18, alpha: 1)
@@ -163,30 +192,119 @@ final class Car3D: SCNNode {
         glass.metalness.contents = 1.0
         glass.roughness.contents = 0.04
 
-        let cabin = SCNBox(width: L * 0.48, height: 11, length: W * 0.86, chamferRadius: 4)
-        cabin.materials = [glass]
-        let cabinNode = SCNNode(geometry: cabin)
-        cabinNode.position = SCNVector3(Float(-L * 0.06), 23, 0)
-        addChildNode(cabinNode)
-
-        // Dark trim bumpers front and rear.
-        let trim = SCNMaterial()
-        trim.diffuse.contents = UIColor(white: 0.10, alpha: 1)
-        trim.lightingModel = .physicallyBased
-        trim.roughness.contents = 0.6
-        for fx: Float in [-1, 1] {
-            let bumper = SCNBox(width: 6, height: 7, length: W * 0.96, chamferRadius: 2.5)
-            bumper.materials = [trim]
-            let bumperNode = SCNNode(geometry: bumper)
-            bumperNode.position = SCNVector3(fx * Float(L / 2), 9, 0)
-            addChildNode(bumperNode)
+        func paintBox(_ w: CGFloat, _ h: CGFloat, _ l: CGFloat, _ x: CGFloat,
+                      _ y: CGFloat, chamfer: CGFloat = 2.5,
+                      material: SCNMaterial? = nil) -> SCNNode {
+            let box = SCNBox(width: w, height: h, length: l, chamferRadius: chamfer)
+            box.materials = [material ?? bodyMaterial]
+            let node = SCNNode(geometry: box)
+            node.position = SCNVector3(Float(x), Float(y), 0)
+            addChildNode(node)
+            return node
         }
 
-        // Wheels: steer pivot (front pair) -> spin node -> cylinder.
+        // Main body between the axles.
+        _ = paintBox(L, baseH, W, 0, sillY + baseH / 2, chamfer: 3.5)
+
+        // Hood and trunk decks sit slightly above the body line.
+        if hoodLen > 4 {
+            _ = paintBox(hoodLen, 3, W * 0.94, L / 2 - hoodLen / 2, deckY + 1.2)
+        }
+        if trunkLen > 4 {
+            _ = paintBox(trunkLen, 3, W * 0.94, -L / 2 + trunkLen / 2, deckY + 1.2)
+        }
+
+        // Greenhouse: glass all round with a painted roof.
+        let cabinX = L / 2 - hoodLen - cabinLen / 2
+        let cabin = SCNBox(width: cabinLen, height: roofH, length: W * 0.84,
+                           chamferRadius: 2.5)
+        if kind.bodyStyle == .van {
+            cabin.materials = [bodyMaterial]
+        } else {
+            cabin.materials = [glass, glass, glass, glass, bodyMaterial, bodyMaterial]
+        }
+        let cabinNode = SCNNode(geometry: cabin)
+        cabinNode.position = SCNVector3(Float(cabinX), Float(deckY + roofH / 2), 0)
+        addChildNode(cabinNode)
+        if kind.bodyStyle == .van {
+            // Van windshield: a glass panel on the cab front.
+            let shield = SCNBox(width: 1.6, height: roofH * 0.6, length: W * 0.74,
+                                chamferRadius: 1)
+            shield.materials = [glass]
+            let shieldNode = SCNNode(geometry: shield)
+            shieldNode.position = SCNVector3(Float(cabinX + cabinLen / 2), Float(deckY + roofH * 0.55), 0)
+            addChildNode(shieldNode)
+        }
+
+        // Pickup bed walls and tailgate.
+        if kind.bodyStyle == .pickup {
+            let bedLen = L - hoodLen - cabinLen - 6
+            let bedX = -L / 2 + bedLen / 2
+            for side: CGFloat in [-1, 1] {
+                _ = {
+                    let wall = paintBox(bedLen, 7, 3, bedX, deckY + 3)
+                    wall.position.z = Float(side * (W / 2 - 2.5))
+                    return wall
+                }()
+            }
+            _ = paintBox(3, 7, W * 0.9, -L / 2 + 1.5, deckY + 3)
+        }
+
+        // Dark wheel arches over each wheel.
+        for fx: CGFloat in [-1, 1] {
+            for side: CGFloat in [-1, 1] {
+                let arch = SCNBox(width: 23, height: 4.5, length: 5, chamferRadius: 2)
+                arch.materials = [trim]
+                let archNode = SCNNode(geometry: arch)
+                archNode.position = SCNVector3(Float(fx * L * 0.32), Float(sillY + 8),
+                                               Float(side * (W / 2 - 1)))
+                addChildNode(archNode)
+            }
+        }
+
+        // Bumpers, grille, plates, exhaust.
+        for fx: CGFloat in [-1, 1] {
+            let bumper = SCNBox(width: 6, height: 6, length: W * 0.96, chamferRadius: 2.5)
+            bumper.materials = [trim]
+            let bumperNode = SCNNode(geometry: bumper)
+            bumperNode.position = SCNVector3(Float(fx * L / 2), 8, 0)
+            addChildNode(bumperNode)
+
+            let plate = SCNBox(width: 1.2, height: 4, length: 12, chamferRadius: 0.5)
+            let plateMat = SCNMaterial()
+            plateMat.diffuse.contents = UIColor(white: 0.92, alpha: 1)
+            plate.materials = [plateMat]
+            let plateNode = SCNNode(geometry: plate)
+            plateNode.position = SCNVector3(Float(fx * (L / 2 + 3)), 8, 0)
+            addChildNode(plateNode)
+        }
+        let grille = SCNBox(width: 1.6, height: 4.5, length: W * 0.5, chamferRadius: 1)
+        grille.materials = [trim]
+        let grilleNode = SCNNode(geometry: grille)
+        grilleNode.position = SCNVector3(Float(L / 2 + 0.6), Float(deckY - 1), 0)
+        addChildNode(grilleNode)
+
+        let exhaustCount = kind.bodyStyle == .sports ? 2 : 1
+        for e in 0..<exhaustCount {
+            let pipe = SCNCylinder(radius: 1.5, height: 5)
+            pipe.materials = [trim]
+            let pipeNode = SCNNode(geometry: pipe)
+            pipeNode.eulerAngles.z = .pi / 2
+            pipeNode.position = SCNVector3(Float(-L / 2 - 1), 4.5,
+                                           Float(W * 0.25 - CGFloat(e) * W * 0.5))
+            addChildNode(pipeNode)
+        }
+
+        // Wheels: steer pivot (front pair) -> spin node -> tyre + hub.
         let tyre = SCNMaterial()
         tyre.diffuse.contents = UIColor(white: 0.06, alpha: 1)
         tyre.roughness.contents = 0.9
         tyre.lightingModel = .physicallyBased
+        let hub = SCNMaterial()
+        hub.diffuse.contents = UIColor(white: 0.7, alpha: 1)
+        hub.lightingModel = .physicallyBased
+        hub.metalness.contents = 0.9
+        hub.roughness.contents = 0.25
         for fx: CGFloat in [-1, 1] {
             for side: CGFloat in [-1, 1] {
                 let pivot = SCNNode()
@@ -196,18 +314,24 @@ final class Car3D: SCNNode {
                 let spin = SCNNode()
                 pivot.addChildNode(spin)
 
-                let wheel = SCNCylinder(radius: 9, height: 7)
+                let wheel = SCNCylinder(radius: 9, height: 6.5)
                 wheel.materials = [tyre]
                 let wheelNode = SCNNode(geometry: wheel)
                 wheelNode.eulerAngles.x = .pi / 2
                 spin.addChildNode(wheelNode)
+
+                let cap = SCNCylinder(radius: 5, height: 7.3)
+                cap.materials = [hub]
+                let capNode = SCNNode(geometry: cap)
+                capNode.eulerAngles.x = .pi / 2
+                spin.addChildNode(capNode)
 
                 if fx > 0 { steerPivots.append(pivot) }
                 spinNodes.append(spin)
             }
         }
 
-        // Headlights (emissive) + tail lights on a shared brake material.
+        // Lights.
         let headMat = SCNMaterial()
         headMat.diffuse.contents = UIColor(white: 0.9, alpha: 1)
         headMat.emission.contents = UIColor(red: 1, green: 0.95, blue: 0.8, alpha: 1)
@@ -215,16 +339,16 @@ final class Car3D: SCNNode {
         tailMaterial.emission.contents = UIColor.red
         tailMaterial.emission.intensity = 0.25
         for side: Float in [-1, 1] {
-            let head = SCNBox(width: 3, height: 4, length: 8, chamferRadius: 1)
+            let head = SCNBox(width: 2.5, height: 3.5, length: 8, chamferRadius: 1)
             head.materials = [headMat]
             let headNode = SCNNode(geometry: head)
-            headNode.position = SCNVector3(Float(L / 2), 13, side * Float(W / 2 - 7))
+            headNode.position = SCNVector3(Float(L / 2), Float(deckY), side * Float(W / 2 - 7))
             addChildNode(headNode)
 
-            let tail = SCNBox(width: 2.5, height: 4, length: 9, chamferRadius: 1)
+            let tail = SCNBox(width: 2.2, height: 3.5, length: 9, chamferRadius: 1)
             tail.materials = [tailMaterial]
             let tailNode = SCNNode(geometry: tail)
-            tailNode.position = SCNVector3(Float(-L / 2), 13, side * Float(W / 2 - 8))
+            tailNode.position = SCNVector3(Float(-L / 2), Float(deckY), side * Float(W / 2 - 8))
             addChildNode(tailNode)
         }
 
@@ -247,21 +371,22 @@ final class Car3D: SCNNode {
         addChildNode(cone)
         coneNode = cone
 
+        let roofTop = deckY + roofH
         if kind.isPolice {
             let bar = SCNNode()
-            for (offset, color): (Float, UIColor) in [(-6, .red),
-                                                      (6, UIColor(red: 0.2, green: 0.4, blue: 1, alpha: 1))] {
+            for (offset, lampColor): (Float, UIColor) in [(-6, .red),
+                                                          (6, UIColor(red: 0.2, green: 0.4, blue: 1, alpha: 1))] {
                 let lamp = SCNBox(width: 9, height: 5, length: 10, chamferRadius: 1.5)
                 let m = SCNMaterial()
-                m.diffuse.contents = color
-                m.emission.contents = color
+                m.diffuse.contents = lampColor
+                m.emission.contents = lampColor
                 m.emission.intensity = 0.3
                 lamp.materials = [m]
                 let lampNode = SCNNode(geometry: lamp)
                 lampNode.position = SCNVector3(0, 0, offset)
                 bar.addChildNode(lampNode)
             }
-            bar.position = SCNVector3(Float(-L * 0.06), 31, 0)
+            bar.position = SCNVector3(Float(cabinX), Float(roofTop + 2.5), 0)
             addChildNode(bar)
             lightbar = bar
         }
@@ -274,7 +399,7 @@ final class Car3D: SCNNode {
             m.emission.intensity = 0.4
             sign.materials = [m]
             let signNode = SCNNode(geometry: sign)
-            signNode.position = SCNVector3(Float(-L * 0.06), 31, 0)
+            signNode.position = SCNVector3(Float(cabinX), Float(roofTop + 3.5), 0)
             addChildNode(signNode)
         }
     }
@@ -331,7 +456,8 @@ final class Car3D: SCNNode {
         guard !disabled else { return }
         hp = max(0, hp - d)
         if hp / kind.maxHP < 0.5 {
-            bodyMaterial.roughness.contents = 0.7    // scuffed paint
+            bodyMaterial.roughness.contents = 0.7
+            bodyMaterial.clearCoat.contents = 0.2
         }
         if disabled { startSmoking() }
     }
@@ -361,8 +487,8 @@ final class Car3D: SCNNode {
 
 // MARK: - People
 
-/// A 3D person built from primitives, with a simple procedural walk cycle.
-/// Used for pedestrians and (with brighter clothes) the player.
+/// A 3D person: pelvis, tapered torso, articulated limbs with hands and
+/// feet, and hair — driven by a procedural walk cycle.
 final class Ped3D: SCNNode {
     enum State { case walk, flee, down }
 
@@ -381,60 +507,104 @@ final class Ped3D: SCNNode {
     private var legPivots: [SCNNode] = []
     private var armPivots: [SCNNode] = []
     private var walkPhase: CGFloat = 0
-    private(set) var isDownVisually = false
 
-    init(shirt: UIColor, trousers: UIColor, skin: UIColor) {
+    init(shirt: UIColor, trousers: UIColor, skin: UIColor, hair: UIColor) {
         super.init()
-        build(shirt: shirt, trousers: trousers, skin: skin)
+        build(shirt: shirt, trousers: trousers, skin: skin, hair: hair)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    private func build(shirt: UIColor, trousers: UIColor, skin: UIColor) {
-        func mat(_ c: UIColor) -> SCNMaterial {
+    private func build(shirt: UIColor, trousers: UIColor, skin: UIColor, hair: UIColor) {
+        func mat(_ c: UIColor, rough: CGFloat = 0.85) -> SCNMaterial {
             let m = SCNMaterial()
             m.diffuse.contents = c
             m.lightingModel = .physicallyBased
-            m.roughness.contents = 0.85
+            m.roughness.contents = rough
             return m
         }
+        let skinMat = mat(skin, rough: 0.6)
+        let shirtMat = mat(shirt)
+        let trouserMat = mat(trousers)
+        let shoeMat = mat(UIColor(white: 0.12, alpha: 1), rough: 0.5)
 
-        // Legs: pivot at the hip, cylinder hanging below.
+        // Legs with feet: pivot at the hip so the whole leg swings.
         for side: Float in [-1, 1] {
             let pivot = SCNNode()
-            pivot.position = SCNVector3(0, 16, side * 3.2)
-            let leg = SCNCylinder(radius: 2.4, height: 16)
-            leg.materials = [mat(trousers)]
+            pivot.position = SCNVector3(0, 17, side * 3.2)
+            let leg = SCNCapsule(capRadius: 2.3, height: 17)
+            leg.materials = [trouserMat]
             let legNode = SCNNode(geometry: leg)
-            legNode.position = SCNVector3(0, -8, 0)
+            legNode.position = SCNVector3(0, -8.5, 0)
             pivot.addChildNode(legNode)
+
+            let foot = SCNBox(width: 6.5, height: 2.4, length: 3.4, chamferRadius: 1)
+            foot.materials = [shoeMat]
+            let footNode = SCNNode(geometry: foot)
+            footNode.position = SCNVector3(1.6, -16.4, 0)
+            pivot.addChildNode(footNode)
+
             addChildNode(pivot)
             legPivots.append(pivot)
         }
 
-        let torso = SCNCapsule(capRadius: 5, height: 16)
-        torso.materials = [mat(shirt)]
+        // Pelvis and a tapered torso with shoulders.
+        let pelvis = SCNBox(width: 7.5, height: 5.5, length: 9.5, chamferRadius: 2.5)
+        pelvis.materials = [trouserMat]
+        let pelvisNode = SCNNode(geometry: pelvis)
+        pelvisNode.position = SCNVector3(0, 19, 0)
+        addChildNode(pelvisNode)
+
+        let torso = SCNCapsule(capRadius: 5.2, height: 15)
+        torso.materials = [shirtMat]
         let torsoNode = SCNNode(geometry: torso)
-        torsoNode.position = SCNVector3(0, 23, 0)
+        torsoNode.position = SCNVector3(0, 26, 0)
         addChildNode(torsoNode)
 
+        let shoulders = SCNBox(width: 7, height: 4, length: 13.5, chamferRadius: 2)
+        shoulders.materials = [shirtMat]
+        let shouldersNode = SCNNode(geometry: shoulders)
+        shouldersNode.position = SCNVector3(0, 30.5, 0)
+        addChildNode(shouldersNode)
+
+        // Arms with hands.
         for side: Float in [-1, 1] {
             let pivot = SCNNode()
-            pivot.position = SCNVector3(0, 28, side * 6.4)
-            let arm = SCNCylinder(radius: 1.7, height: 13)
-            arm.materials = [mat(shirt)]
+            pivot.position = SCNVector3(0, 30, side * 7.2)
+            let arm = SCNCapsule(capRadius: 1.8, height: 13)
+            arm.materials = [shirtMat]
             let armNode = SCNNode(geometry: arm)
             armNode.position = SCNVector3(0, -6.5, 0)
             pivot.addChildNode(armNode)
+
+            let hand = SCNSphere(radius: 1.9)
+            hand.materials = [skinMat]
+            let handNode = SCNNode(geometry: hand)
+            handNode.position = SCNVector3(0, -13.4, 0)
+            pivot.addChildNode(handNode)
+
             addChildNode(pivot)
             armPivots.append(pivot)
         }
 
-        let head = SCNSphere(radius: 4.4)
-        head.materials = [mat(skin)]
+        // Neck, head, hair.
+        let neck = SCNCylinder(radius: 1.8, height: 2.5)
+        neck.materials = [skinMat]
+        let neckNode = SCNNode(geometry: neck)
+        neckNode.position = SCNVector3(0, 33.5, 0)
+        addChildNode(neckNode)
+
+        let head = SCNSphere(radius: 4.3)
+        head.materials = [skinMat]
         let headNode = SCNNode(geometry: head)
-        headNode.position = SCNVector3(0, 35, 0)
+        headNode.position = SCNVector3(0.4, 38, 0)
         addChildNode(headNode)
+
+        let hairCap = SCNSphere(radius: 4.4)
+        hairCap.materials = [mat(hair, rough: 0.9)]
+        let hairNode = SCNNode(geometry: hairCap)
+        hairNode.position = SCNVector3(-0.9, 39.1, 0)
+        addChildNode(hairNode)
     }
 
     /// Swing limbs while moving; settle to neutral when still.
@@ -457,7 +627,6 @@ final class Ped3D: SCNNode {
         guard state != .down else { return }
         state = .down
         stateTimer = 9
-        isDownVisually = true
         removeAllActions()
         runAction(.rotateTo(x: .pi / 2, y: CGFloat(eulerAngles.y), z: 0, duration: 0.2))
     }
@@ -469,9 +638,13 @@ enum Avatar3D {
         let jacket: UIColor = (p == .mia)
             ? UIColor(red: 0.95, green: 0.25, blue: 0.60, alpha: 1)
             : UIColor(red: 0.15, green: 0.70, blue: 0.65, alpha: 1)
+        let hair: UIColor = (p == .mia)
+            ? UIColor(red: 0.30, green: 0.18, blue: 0.10, alpha: 1)
+            : UIColor(white: 0.10, alpha: 1)
         let ped = Ped3D(shirt: jacket,
                         trousers: UIColor(white: 0.15, alpha: 1),
-                        skin: UIColor(red: 0.87, green: 0.68, blue: 0.55, alpha: 1))
+                        skin: UIColor(red: 0.87, green: 0.68, blue: 0.55, alpha: 1),
+                        hair: hair)
         ped.wallet = 0
         return ped
     }
@@ -480,7 +653,7 @@ enum Avatar3D {
 // MARK: - Markers
 
 enum Markers3D {
-    /// Glowing ground ring with a light beam, GTA-style.
+    /// Glowing ground ring with a light beam, arcade-clear against the city.
     static func waypoint(color: UIColor, beamHeight: CGFloat = 320) -> SCNNode {
         let node = SCNNode()
 

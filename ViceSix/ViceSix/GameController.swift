@@ -114,7 +114,8 @@ final class GameController: NSObject, SCNSceneRendererDelegate {
         // headlights, SSAO for contact shadows between the towers, a touch
         // of vignette and grain, and motion blur that sells the speed.
         let camera = SCNCamera()
-        camera.zFar = 20000
+        camera.zNear = 8          // a tight near plane keeps the depth
+        camera.zFar = 20000       // buffer precise — no ground shimmer
         camera.fieldOfView = 62
         camera.wantsHDR = true
         camera.wantsExposureAdaptation = true
@@ -127,9 +128,9 @@ final class GameController: NSObject, SCNSceneRendererDelegate {
         camera.screenSpaceAmbientOcclusionRadius = 22
         camera.vignettingPower = 1.0
         camera.vignettingIntensity = 0.6
-        camera.grainIntensity = 0.07
+        camera.grainIntensity = 0.05
         camera.grainIsColored = false
-        camera.motionBlurIntensity = 0.35
+        camera.motionBlurIntensity = 0.2
         camera.saturation = 1.15
         camera.contrast = 1.06
         cameraNode.camera = camera
@@ -906,10 +907,19 @@ final class GameController: NSObject, SCNSceneRendererDelegate {
             UIColor(red: 0.25, green: 0.3, blue: 0.45, alpha: 1),
             UIColor(red: 0.4, green: 0.35, blue: 0.3, alpha: 1),
         ]
+        let hairs: [UIColor] = [
+            UIColor(white: 0.08, alpha: 1),
+            UIColor(red: 0.32, green: 0.20, blue: 0.10, alpha: 1),
+            UIColor(red: 0.55, green: 0.42, blue: 0.22, alpha: 1),
+            UIColor(white: 0.65, alpha: 1),
+        ]
         let ped = Ped3D(shirt: rng.pick(shirts), trousers: rng.pick(trousers),
-                        skin: rng.pick(skins))
+                        skin: rng.pick(skins), hair: rng.pick(hairs))
         ped.walkSpeed = rng.range(40, 70)
         ped.wallet = rng.int(8, 45)
+        // A crowd of identical heights reads fake; vary them a little.
+        let s = Float(rng.range(0.92, 1.08))
+        ped.scale = SCNVector3(s, s, s)
         return ped
     }
 
@@ -1436,8 +1446,18 @@ final class GameController: NSObject, SCNSceneRendererDelegate {
 
     private func updateCamera(_ dt: CGFloat, playing: Bool) {
         if playing {
+            // The rig is rigid: softness comes only from yaw smoothing,
+            // which kills the floaty swimming. Yaw tracks the heading
+            // faster the quicker you turn, and never while reversing (so
+            // backing out of a spot doesn't whip the camera around).
             let heading = playerCar?.heading ?? playerHeading
-            camYaw += shortestAngle(heading - camYaw) * min(1, 3.2 * dt)
+            let reversing = (playerCar?.forwardSpeed ?? 0) < -5
+            let turning = playerMoving || playerCar != nil
+            if !reversing && turning {
+                let diff = shortestAngle(heading - camYaw)
+                let rate: CGFloat = playerCar != nil ? 4.5 : 7.0
+                camYaw += diff * min(1, rate * dt)
+            }
 
             let speedFrac: CGFloat
             if let car = playerCar {
@@ -1462,17 +1482,17 @@ final class GameController: NSObject, SCNSceneRendererDelegate {
 
             let target = SCNVector3(Float(camPlane.x) + shakeX, Float(height),
                                     Float(camPlane.y) + shakeY)
-            let k = Float(min(1, 6 * dt))
+            let k = Float(min(1, 14 * dt))
             cameraNode.position = SCNVector3(
                 cameraNode.position.x + (target.x - cameraNode.position.x) * k,
                 cameraNode.position.y + (target.y - cameraNode.position.y) * k,
                 cameraNode.position.z + (target.z - cameraNode.position.z) * k)
 
-            let lookAhead: CGFloat = playerCar != nil ? 120 : 40
+            let lookAhead: CGFloat = playerCar != nil ? 110 : 30
             cameraNode.look(at: SCNVector3(Float(playerPos.x + cos(camYaw) * lookAhead),
-                                           32,
+                                           34,
                                            Float(playerPos.y + sin(camYaw) * lookAhead)))
-            cameraNode.camera?.fieldOfView = 62 + speedFrac * 14
+            cameraNode.camera?.fieldOfView = 62 + speedFrac * 12
         } else if phase == .menu {
             let t = Float(clock) * 0.06
             let cx = Float(city.missionGiver.x)
