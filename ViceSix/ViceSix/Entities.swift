@@ -81,11 +81,11 @@ enum CarCatalog {
 
 /// A car in the world. Artwork points along +x; `heading` drives rotation.
 /// `velocity` is the true world-space velocity (the tyre model lives in
-/// GameScene); `speed` mirrors its forward component for AI and the HUD.
+/// GameScene); `forwardSpeed` mirrors its forward component for AI and the HUD.
 final class Car: SKNode {
     let kind: CarKind
     var hp: CGFloat
-    var speed: CGFloat = 0
+    var forwardSpeed: CGFloat = 0
     var velocity = CGVector.zero
     var heading: CGFloat = 0 { didSet { zRotation = heading } }
     var driver: DriverKind = .npc

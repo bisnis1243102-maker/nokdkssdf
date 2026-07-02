@@ -518,7 +518,7 @@ final class GameScene: SKScene {
     private func exitCarInstantly() {
         if let car = playerCar {
             car.driver = .parked
-            car.speed = 0
+            car.forwardSpeed = 0
             car.velocity = .zero
             car.steerVisual = 0
             car.setBraking(false)
@@ -590,8 +590,8 @@ final class GameScene: SKScene {
         car.brakeTimer = 0
         car.setBraking(false)
         // Hand the tyre model whatever momentum the car already had.
-        car.velocity = CGVector(dx: cos(car.heading) * car.speed,
-                                dy: sin(car.heading) * car.speed)
+        car.velocity = CGVector(dx: cos(car.heading) * car.forwardSpeed,
+                                dy: sin(car.heading) * car.forwardSpeed)
         playerCar = car
         playerNode.isHidden = true
         playerPos = car.position
@@ -599,7 +599,7 @@ final class GameScene: SKScene {
 
     private func exitVehicle() {
         guard let car = playerCar else { return }
-        car.speed = 0
+        car.forwardSpeed = 0
         car.velocity = .zero
         car.steerVisual = 0
         car.setBraking(false)
@@ -819,7 +819,7 @@ final class GameScene: SKScene {
         let sound = SoundEngine.shared
         sound.setMaster(playing ? 1.0 : 0.35)
         if let car = playerCar, playing, !car.disabled {
-            let frac = min(1, abs(car.speed) / car.kind.maxSpeed)
+            let frac = min(1, abs(car.forwardSpeed) / car.kind.maxSpeed)
             sound.setEngine(level: 0.25 + 0.75 * Float(frac), hz: 58 + 190 * Float(frac))
         } else {
             sound.setEngine(level: 0, hz: 70)
@@ -901,7 +901,7 @@ final class GameScene: SKScene {
             collide(car, with: mc)
         }
         for ped in peds where ped.state != .down {
-            if abs(car.speed) > 90 &&
+            if abs(car.forwardSpeed) > 90 &&
                 distance(ped.position, car.position) < kind.length * 0.45 {
                 ped.knockDown()
                 SoundEngine.shared.thud()
@@ -971,7 +971,7 @@ final class GameScene: SKScene {
 
         car.velocity = CGVector(dx: fwd.dx * vF + right.dx * vLat,
                                 dy: fwd.dy * vF + right.dy * vLat)
-        car.speed = vF
+        car.forwardSpeed = vF
 
         let delta = CGVector(dx: car.velocity.dx * dt, dy: car.velocity.dy * dt)
         let (moved, hitWall) = moveCircle(car.position, delta: delta,
@@ -988,10 +988,10 @@ final class GameScene: SKScene {
                 }
                 car.velocity = CGVector(dx: -car.velocity.dx * 0.25,
                                         dy: -car.velocity.dy * 0.25)
-                car.speed = -vF * 0.25
+                car.forwardSpeed = -vF * 0.25
             } else {
                 car.velocity = .zero
-                car.speed = 0
+                car.forwardSpeed = 0
             }
         }
 
@@ -999,15 +999,15 @@ final class GameScene: SKScene {
         let nose = CGPoint(x: car.position.x + fwd.dx * (kind.length / 2 - 6),
                            y: car.position.y + fwd.dy * (kind.length / 2 - 6))
         for rect in city.collisionRects(near: nose) where rect.contains(nose) {
-            let v = abs(car.speed)
+            let v = abs(car.forwardSpeed)
             if v > 170 {
                 car.applyDamage((v - 120) * 0.05)
                 if car === playerCar { SoundEngine.shared.crash(Float(min(1, v / 500))) }
             }
             car.position = CGPoint(x: car.position.x - fwd.dx * v * dt * 1.2,
                                    y: car.position.y - fwd.dy * v * dt * 1.2)
-            car.speed = -car.speed * 0.2
-            car.velocity = CGVector(dx: fwd.dx * car.speed, dy: fwd.dy * car.speed)
+            car.forwardSpeed = -car.forwardSpeed * 0.2
+            car.velocity = CGVector(dx: fwd.dx * car.forwardSpeed, dy: fwd.dy * car.forwardSpeed)
             break
         }
 
@@ -1066,7 +1066,7 @@ final class GameScene: SKScene {
         b.position = CGPoint(x: b.position.x + nx * overlap, y: b.position.y + ny * overlap)
         let rel = CGVector(dx: a.velocity.dx - b.velocity.dx,
                            dy: a.velocity.dy - b.velocity.dy)
-        let impact = max(abs(a.speed - b.speed), hypot(rel.dx, rel.dy))
+        let impact = max(abs(a.forwardSpeed - b.forwardSpeed), hypot(rel.dx, rel.dy))
         if impact > 120 {
             a.applyDamage(impact * 0.035)
             b.applyDamage(impact * 0.05)
@@ -1076,7 +1076,7 @@ final class GameScene: SKScene {
             }
         }
         for car in [a, b] {
-            car.speed *= 0.72
+            car.forwardSpeed *= 0.72
             car.velocity = CGVector(dx: car.velocity.dx * 0.72, dy: car.velocity.dy * 0.72)
         }
         // Nudge velocities apart so tangled cars separate cleanly.
@@ -1127,7 +1127,7 @@ final class GameScene: SKScene {
         // Brake for anything ahead in the lane.
         var blocked = car.brakeTimer > 0
         if !blocked {
-            let lookAhead: CGFloat = 120 + car.speed * 0.3
+            let lookAhead: CGFloat = 120 + car.forwardSpeed * 0.3
             blocked = obstacleAhead(of: car, dir: dir, distance: lookAhead)
         }
         // Obey the signals: hold at the stop line on red or yellow.
@@ -1144,14 +1144,14 @@ final class GameScene: SKScene {
 
         // Drivers slow down in the rain.
         let cruise = car.kind.maxSpeed * (raining ? 0.42 : 0.5)
-        car.speed = approach(car.speed, blocked ? 0 : cruise,
+        car.forwardSpeed = approach(car.forwardSpeed, blocked ? 0 : cruise,
                              blocked ? 600 : car.kind.accel * 0.7, dt)
-        car.setBraking(blocked && car.speed > 4)
+        car.setBraking(blocked && car.forwardSpeed > 4)
 
         // Advance along the axis; ease laterally onto the lane centre.
         var p = car.position
-        p.x += dir.dx * car.speed * dt
-        p.y += dir.dy * car.speed * dt
+        p.x += dir.dx * car.forwardSpeed * dt
+        p.y += dir.dy * car.forwardSpeed * dt
         let laneTarget = trafficLaneTarget(for: car)
         if horizontal {
             p.y += (laneTarget - p.y) * min(1, 6 * dt)
@@ -1159,7 +1159,7 @@ final class GameScene: SKScene {
             p.x += (laneTarget - p.x) * min(1, 6 * dt)
         }
         car.position = p
-        car.velocity = CGVector(dx: dir.dx * car.speed, dy: dir.dy * car.speed)
+        car.velocity = CGVector(dx: dir.dx * car.forwardSpeed, dy: dir.dy * car.forwardSpeed)
 
         // Face the direction of travel, smoothly.
         let want = Self.dirAngles[car.dirIndex]
@@ -1350,7 +1350,7 @@ final class GameScene: SKScene {
             ped.heading = rng.range(-.pi, .pi)
         }
         // Dive out of the way of the player's car.
-        if let car = playerCar, abs(car.speed) > 120, ped.state == .walk {
+        if let car = playerCar, abs(car.forwardSpeed) > 120, ped.state == .walk {
             let toPed = CGVector(dx: ped.position.x - car.position.x,
                                  dy: ped.position.y - car.position.y)
             let d = hypot(toPed.dx, toPed.dy)
@@ -1512,7 +1512,7 @@ final class GameScene: SKScene {
         }
 
         // Unstick: reversing for a moment beats spinning wheels forever.
-        if abs(cop.speed) < 30 && targetSpeed > 60 && cop.reverseTimer <= 0 {
+        if abs(cop.forwardSpeed) < 30 && targetSpeed > 60 && cop.reverseTimer <= 0 {
             cop.stuckTimer += TimeInterval(dt)
             if cop.stuckTimer > 1.6 {
                 cop.stuckTimer = 0
@@ -1537,7 +1537,7 @@ final class GameScene: SKScene {
             let speed = hypot(playerVelocity.dx, playerVelocity.dy)
             return d < GameConfig.arrestDistanceFoot && speed < 70
         } else if let car = playerCar {
-            return d < GameConfig.arrestDistanceCar && abs(car.speed) < 50
+            return d < GameConfig.arrestDistanceCar && abs(car.forwardSpeed) < 50
         }
         return false
     }
@@ -1883,15 +1883,15 @@ final class GameScene: SKScene {
         if playing {
             var target = playerPos
             if let car = playerCar {
-                target.x += cos(car.heading) * min(220, abs(car.speed) * 0.35)
-                target.y += sin(car.heading) * min(220, abs(car.speed) * 0.35)
+                target.x += cos(car.heading) * min(220, abs(car.forwardSpeed) * 0.35)
+                target.y += sin(car.heading) * min(220, abs(car.forwardSpeed) * 0.35)
             }
             let k = min(1, 4.5 * dt)
             camNode.position = CGPoint(x: camNode.position.x + (target.x - camNode.position.x) * k,
                                        y: camNode.position.y + (target.y - camNode.position.y) * k)
             let wantScale: CGFloat
             if let car = playerCar {
-                wantScale = 1.05 + min(0.55, abs(car.speed) / 640 * 0.6)
+                wantScale = 1.05 + min(0.55, abs(car.forwardSpeed) / 640 * 0.6)
             } else {
                 wantScale = 0.95
             }
@@ -1972,7 +1972,7 @@ final class GameScene: SKScene {
         if let car = playerCar {
             let frac = max(0, car.hp / car.kind.maxHP)
             if abs(state.vehicleHealth - frac) > 0.02 { state.vehicleHealth = frac }
-            let kmh = Int(abs(car.speed) * 0.22)
+            let kmh = Int(abs(car.forwardSpeed) * 0.22)
             if state.speedKMH != kmh { state.speedKMH = kmh }
         } else if state.speedKMH != 0 {
             state.speedKMH = 0
