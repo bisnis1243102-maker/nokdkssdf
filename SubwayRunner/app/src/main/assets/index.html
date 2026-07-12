@@ -363,8 +363,9 @@ let shake=0, tPrev=performance.now(), animT=0;
 const obstacles=[], coins=[], pickups=[];
 let chunkEnd=-20;   // most-negative z already filled with content
 
-/* Level / boss structure: 2 levels, then a boss, forever. */
-const LEVEL_LEN=400;
+/* Level / boss structure: 2 levels, then a boss, forever.
+   140m per level -> the boss shows up every 280m. */
+const LEVEL_LEN=140;
 let phase='normal';            // 'normal' | 'boss'
 let levelDist=0, curLevel=1, bossesDone=0;
 let boss=null, bossWaves=0, bossTotal=0, attackT=0;
