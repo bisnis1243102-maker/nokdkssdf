@@ -5,6 +5,11 @@ in a tiny Android WebView app.
 
 ## Gameplay
 
+- Endless level structure: **2 levels, then a BOSS — forever**, with the
+  scenery cycling day → sunset → night → dawn after each boss
+- Boss fights: a flying mech telegraphs lane bombs (switch lanes!), low
+  lasers (jump!) and high lasers (roll!) — survive all waves to blow it up
+  and earn a +50 coin bonus; each boss gets more waves and faster attacks
 - 3-lane subway track — **swipe left / right** to change lanes
 - **Swipe up** to jump over hurdles, **swipe down** to roll under signs
 - Dodge parked **and oncoming** trains

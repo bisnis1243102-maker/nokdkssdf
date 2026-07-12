@@ -18,6 +18,19 @@
   #power .bar{margin-top:5px;width:110px;height:8px;border-radius:4px;background:rgba(0,0,0,.35);
               overflow:hidden;margin-left:auto;}
   #power .fill{height:100%;width:100%;border-radius:4px;background:#39d6ff;}
+  #level{top:12px;left:50%;transform:translateX(-50%);font-weight:900;font-size:17px;
+         background:rgba(0,0,0,.3);padding:4px 14px;border-radius:14px;}
+  #bossbar{position:fixed;top:46px;left:50%;transform:translateX(-50%);width:190px;
+           text-align:center;color:#ff6a5a;font-weight:900;font-size:14px;display:none;
+           text-shadow:0 2px 4px rgba(0,0,0,.6);pointer-events:none;}
+  #bossbar .bar{margin-top:4px;height:10px;border-radius:5px;background:rgba(0,0,0,.4);overflow:hidden;}
+  #bossbar .fill{height:100%;width:100%;background:linear-gradient(90deg,#ff3b2f,#ff9a3d);border-radius:5px;}
+  #banner{position:fixed;top:24%;left:0;right:0;text-align:center;font-size:46px;font-weight:900;
+          letter-spacing:2px;color:#ffd83d;-webkit-text-stroke:2px #b8451c;
+          text-shadow:0 4px 0 #b8451c,0 8px 20px rgba(0,0,0,.4);opacity:0;pointer-events:none;}
+  #banner.show{animation:ban 1.7s ease;}
+  @keyframes ban{0%{opacity:0;transform:scale(.55)}15%{opacity:1;transform:scale(1.1)}
+                 30%{transform:scale(1)}75%{opacity:1}100%{opacity:0}}
   .ovl{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
        justify-content:center;text-align:center;color:#fff;background:rgba(8,18,38,.55);
        backdrop-filter:blur(3px);}
@@ -39,6 +52,9 @@
 <div id="score" class="hud">0</div>
 <div id="coinbox" class="hud"><span class="dot"></span><span id="coinN">0</span></div>
 <div id="power" class="hud"><span id="powName">MAGNET</span><div class="bar"><div class="fill" id="powFill"></div></div></div>
+<div id="level" class="hud">LVL 1</div>
+<div id="bossbar"><span>⚡ BOSS ⚡</span><div class="bar"><div class="fill" id="bossFill"></div></div></div>
+<div id="banner"></div>
 
 <div id="start" class="ovl">
   <div class="ttl">SUBWAY<br>DASH<small>ENDLESS RUNNER</small></div>
@@ -69,14 +85,29 @@ renderer.outputEncoding = THREE.sRGBEncoding;
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x8fc8ec, 55, 165);
 
-(function sky(){
+function makeSky(top,mid,bot){
   const c=document.createElement('canvas'); c.width=4; c.height=256;
-  const g=c.getContext('2d').createLinearGradient(0,0,0,256);
-  g.addColorStop(0,'#4fa8e8'); g.addColorStop(.55,'#8fc8ec'); g.addColorStop(1,'#d8ecf7');
-  const x=c.getContext('2d'); x.fillStyle=g; x.fillRect(0,0,4,256);
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,256);
+  g.addColorStop(0,top); g.addColorStop(.55,mid); g.addColorStop(1,bot);
+  x.fillStyle=g; x.fillRect(0,0,4,256);
   const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding;
-  scene.background=t;
-})();
+  return t;
+}
+// One theme per pair of levels: day, sunset, night, dawn — then it cycles.
+const THEMES=[
+  {top:'#4fa8e8',mid:'#8fc8ec',bot:'#d8ecf7',fog:0x8fc8ec,hs:0xcfe8ff,hg:0x54606e,sun:1.1},
+  {top:'#35509e',mid:'#e78a5a',bot:'#ffd9a0',fog:0xdfa080,hs:0xffd8b8,hg:0x5a4a44,sun:.85},
+  {top:'#070d24',mid:'#17224a',bot:'#2e3a63',fog:0x17224a,hs:0x556699,hg:0x1e2430,sun:.32},
+  {top:'#6fa8d8',mid:'#e8b8c8',bot:'#ffe8d0',fog:0xdcb8c0,hs:0xffe0e8,hg:0x4a5560,sun:.9},
+];
+function applyTheme(i){
+  const t=THEMES[i%THEMES.length];
+  scene.background=makeSky(t.top,t.mid,t.bot);
+  scene.fog.color.setHex(t.fog);
+  hemi.color.setHex(t.hs); hemi.groundColor.setHex(t.hg);
+  sun.intensity=t.sun;
+}
 
 const camera = new THREE.PerspectiveCamera(66, innerWidth/innerHeight, .1, 400);
 addEventListener('resize', ()=>{
@@ -84,7 +115,8 @@ addEventListener('resize', ()=>{
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
 });
 
-scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x54606e, .95));
+const hemi=new THREE.HemisphereLight(0xcfe8ff, 0x54606e, .95);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff3df, 1.1);
 sun.position.set(14, 26, 12);
 sun.castShadow = true;
@@ -93,6 +125,7 @@ sun.shadow.camera.left=-12; sun.shadow.camera.right=12;
 sun.shadow.camera.top=14;   sun.shadow.camera.bottom=-30;
 sun.shadow.camera.far=80;
 scene.add(sun);
+applyTheme(0);
 
 /* ================= Constants ================= */
 const LANES=[-2.4,0,2.4];
@@ -330,6 +363,13 @@ let shake=0, tPrev=performance.now(), animT=0;
 const obstacles=[], coins=[], pickups=[];
 let chunkEnd=-20;   // most-negative z already filled with content
 
+/* Level / boss structure: 2 levels, then a boss, forever. */
+const LEVEL_LEN=400;
+let phase='normal';            // 'normal' | 'boss'
+let levelDist=0, curLevel=1, bossesDone=0;
+let boss=null, bossWaves=0, bossTotal=0, attackT=0;
+const attacks=[], fx=[];
+
 const $=id=>document.getElementById(id);
 $('bestStart').innerHTML='BEST <b>'+best+'</b>m';
 
@@ -411,6 +451,102 @@ function clearWorld(){
   chunkEnd=-20;
 }
 
+/* ================= Boss ================= */
+function showBanner(t){
+  const b=$('banner'); b.textContent=t;
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+}
+function makeBoss(){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(3,2.1,1.9),
+    new THREE.MeshLambertMaterial({color:0x37415c}));
+  g.add(body);
+  const visor=new THREE.Mesh(new THREE.BoxGeometry(2.2,.7,.2),darkMat);
+  visor.position.set(0,.35,1); g.add(visor);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(.34,10,10),
+    new THREE.MeshBasicMaterial({color:0xff2b2b}));
+  eye.position.set(0,.35,1.1); g.add(eye);
+  for(const sx of [-1.85,1.85]){
+    const pod=new THREE.Mesh(new THREE.BoxGeometry(.8,1,1.2),
+      new THREE.MeshLambertMaterial({color:0x27324a}));
+    pod.position.set(sx,.3,0); g.add(pod);
+    const gun=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,1.2,8),
+      new THREE.MeshLambertMaterial({color:0x171d2c}));
+    gun.rotation.x=Math.PI/2; gun.position.set(sx,.1,.9); g.add(gun);
+  }
+  for(const sx of [-.9,.9]){
+    const jet=new THREE.Mesh(new THREE.ConeGeometry(.3,.9,8),
+      new THREE.MeshBasicMaterial({color:0xffa030}));
+    jet.rotation.x=Math.PI; jet.position.set(sx,-1.5,0); g.add(jet);
+  }
+  return g;
+}
+function enterBoss(){
+  phase='boss';
+  bossTotal=bossWaves=Math.min(12, 6+bossesDone*2);
+  attackT=2.6;                 // grace period while leftover obstacles clear out
+  boss=makeBoss();
+  boss.position.set(0,3.8,-24);
+  scene.add(boss);
+  $('bossbar').style.display='block';
+  $('bossFill').style.width='100%';
+  showBanner('BOSS FIGHT!');
+  sndPower();
+}
+function explode(x,y,z,big){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(big?1.4:.8,10,10),
+    new THREE.MeshBasicMaterial({color:0xff8a3d,transparent:true,opacity:.95}));
+  m.position.set(x,y,z);
+  scene.add(m); fx.push({mesh:m,t:.5});
+}
+function launchAttack(){
+  bossWaves--;
+  $('bossFill').style.width=(100*bossWaves/bossTotal)+'%';
+  const r=Math.random();
+  if(r<.45){                                       // bomb slam: switch lane!
+    const n=Math.random()<.3+bossesDone*.1?2:1;
+    const pool=[0,1,2].sort(()=>Math.random()-.5).slice(0,n);
+    const marks=pool.map(l=>{
+      const m=new THREE.Mesh(new THREE.PlaneGeometry(2,7),
+        new THREE.MeshBasicMaterial({color:0xff2b2b,transparent:true,opacity:.4}));
+      m.rotation.x=-Math.PI/2; m.position.set(LANES[l],.03,-2);
+      scene.add(m); return m;
+    });
+    attacks.push({kind:'slam',t:.95,lanes:pool,marks});
+  } else {                                          // laser sweep: jump or roll!
+    const low=r<.75;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(7.6,.32,.5),
+      new THREE.MeshBasicMaterial({color:low?0xff5533:0xb14dff}));
+    m.position.set(0, low?.55:1.7, boss.position.z);
+    scene.add(m);
+    attacks.push({kind:'beam',mesh:m,y0:low?.39:1.54,y1:low?.71:1.86,hit:false});
+  }
+}
+function defeatBoss(){
+  explode(boss.position.x,boss.position.y,boss.position.z,true);
+  explode(boss.position.x-1,boss.position.y+.6,boss.position.z,false);
+  explode(boss.position.x+1,boss.position.y-.5,boss.position.z,false);
+  scene.remove(boss); boss=null;
+  phase='normal'; bossesDone++;
+  coinsGot+=50; $('coinN').textContent=coinsGot;
+  $('bossbar').style.display='none';
+  showBanner('BOSS DEFEATED! +50');
+  applyTheme(bossesDone);       // new scenery for the next pair of levels
+  chunkEnd=-60;                 // resume spawning well ahead of the player
+  shake=.6; sndPower();
+}
+function clearBoss(){
+  if(boss){ scene.remove(boss); boss=null; }
+  for(const a of attacks){
+    if(a.kind==='slam') a.marks.forEach(m=>scene.remove(m));
+    else scene.remove(a.mesh);
+  }
+  attacks.length=0;
+  for(const f of fx) scene.remove(f.mesh);
+  fx.length=0;
+  $('bossbar').style.display='none';
+}
+
 /* ================= Input ================= */
 function goLane(d){ if(state!=='run')return; lane=Math.max(0,Math.min(2,lane+d)); }
 function doJump(){ if(state!=='run')return;
@@ -421,16 +557,19 @@ function doRoll(){ if(state!=='run')return;
 function startRun(){
   if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} }
   if(AC && AC.state==='suspended') AC.resume();
-  clearWorld();
+  clearWorld(); clearBoss();
   for(let i=0;i<7;i++) spawnChunk();
   state='run'; run=0; coinsGot=0; speed=13;
   lane=1; px=0; py=0; vy=0; rollT=0; magnetT=0; jetT=0; safeT=0; shake=0;
+  phase='normal'; levelDist=0; curLevel=1; bossesDone=0;
+  applyTheme(0); $('level').textContent='LVL 1'; showBanner('LEVEL 1');
   player.rotation.set(0,0,0); player.visible=true;
   $('start').style.display='none'; $('over').style.display='none';
   $('coinN').textContent='0'; $('score').textContent='0';
 }
 function crash(){
   state='dead'; shake=1; sndCrash();
+  $('bossbar').style.display='none';
   if(run>best){ best=Math.round(run); try{localStorage.setItem('sd_best',best);}catch(e){} }
   $('runStat').innerHTML='RUN <b>'+Math.round(run)+'</b>m';
   $('coinStat').innerHTML='COINS <b>'+coinsGot+'</b>';
@@ -474,7 +613,17 @@ function update(dt){
     for(const p of pickups) p.position.z+=dz;
     for(const s of scenery){ s.position.z+=dz; if(s.position.z>14) s.position.z-=s.userData.loop; }
     despawn(obstacles); despawn(coins); despawn(pickups);
-    while(chunkEnd>HORIZON) spawnChunk();
+    chunkEnd+=dz;               // spawned content drifts with the world
+    if(phase==='normal'){
+      while(chunkEnd>HORIZON) spawnChunk();
+      levelDist+=dz;
+      const lvl=Math.floor(levelDist/LEVEL_LEN)+1;
+      if(lvl!==curLevel){
+        curLevel=lvl; $('level').textContent='LVL '+curLevel;
+        showBanner('LEVEL '+curLevel);
+      }
+      if(levelDist>=(bossesDone+1)*2*LEVEL_LEN) enterBoss();
+    }
 
     // player movement
     const txr=LANES[lane];
@@ -559,7 +708,55 @@ function update(dt){
         scene.remove(p); pickups.splice(i,1);
       }
     }
+
+    // boss fight
+    if(phase==='boss' && boss){
+      const now=performance.now();
+      boss.position.x=Math.sin(now*.0011)*2.2;
+      boss.position.y=3.8+Math.sin(now*.0023)*.35;
+      boss.rotation.z=Math.sin(now*.0011)*.08;
+      if(bossWaves>0){
+        attackT-=dt;
+        if(attackT<=0){
+          launchAttack();
+          attackT=Math.max(1.05, 2.3-bossesDone*.15);
+        }
+      }
+      for(let i=attacks.length-1;i>=0;i--){
+        const a=attacks[i];
+        if(a.kind==='slam'){
+          a.t-=dt;
+          for(const m of a.marks)
+            m.material.opacity=.25+.3*Math.abs(Math.sin(now*.02));
+          if(a.t<=0){
+            for(const l of a.lanes){
+              explode(LANES[l],.9,-1,false);
+              if(state==='run' && jetT<=0 && Math.abs(px-LANES[l])<1.05 && py<2.2) crash();
+            }
+            a.marks.forEach(m=>scene.remove(m));
+            attacks.splice(i,1);
+          }
+        } else {
+          a.mesh.position.z+=(24+bossesDone*2)*dt;
+          if(!a.hit && a.mesh.position.z>-.45){
+            a.hit=true;
+            if(state==='run' && jetT<=0 && pTop>a.y0 && py<a.y1) crash();
+          }
+          if(a.mesh.position.z>8){ scene.remove(a.mesh); attacks.splice(i,1); }
+        }
+      }
+      if(bossWaves<=0 && attacks.length===0 && state==='run') defeatBoss();
+    }
+
     $('score').textContent=Math.round(run);
+  }
+
+  // explosion effects keep animating even through the crash cam
+  for(let i=fx.length-1;i>=0;i--){
+    const f=fx[i]; f.t-=dt;
+    f.mesh.scale.multiplyScalar(1+dt*6);
+    f.mesh.material.opacity=Math.max(0,f.t*1.9);
+    if(f.t<=0){ scene.remove(f.mesh); fx.splice(i,1); }
   }
 
   if(state==='dead'){
