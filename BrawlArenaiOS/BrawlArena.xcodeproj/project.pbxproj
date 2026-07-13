@@ -11,6 +11,8 @@
 		7D0000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C0000000000000000000002 /* ContentView.swift */; };
 		7D0000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7C0000000000000000000003 /* Assets.xcassets */; };
 		7D0000000000000000000004 /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = 7C0000000000000000000004 /* index.html */; };
+		7D0000000000000000000005 /* three.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 7C0000000000000000000005 /* three.min.js */; };
+		7D0000000000000000000006 /* supabase.js in Resources */ = {isa = PBXBuildFile; fileRef = 7C0000000000000000000006 /* supabase.js */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,6 +20,8 @@
 		7C0000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7C0000000000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7C0000000000000000000004 /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = index.html; path = "../BrawlArena/app/src/main/assets/index.html"; sourceTree = "<group>"; };
+		7C0000000000000000000005 /* three.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = three.min.js; path = "../BrawlArena/app/src/main/assets/three.min.js"; sourceTree = "<group>"; };
+		7C0000000000000000000006 /* supabase.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = supabase.js; path = "../BrawlArena/app/src/main/assets/supabase.js"; sourceTree = "<group>"; };
 		7B000000000000000000000F /* BrawlArena.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BrawlArena.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -37,6 +41,8 @@
 			children = (
 				7B0000000000000000000004 /* BrawlArena */,
 				7C0000000000000000000004 /* index.html */,
+				7C0000000000000000000005 /* three.min.js */,
+				7C0000000000000000000006 /* supabase.js */,
 				7B0000000000000000000005 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -119,6 +125,8 @@
 			files = (
 				7D0000000000000000000003 /* Assets.xcassets in Resources */,
 				7D0000000000000000000004 /* index.html in Resources */,
+				7D0000000000000000000005 /* three.min.js in Resources */,
+				7D0000000000000000000006 /* supabase.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
