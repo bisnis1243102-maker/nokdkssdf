@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Subway Dash</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#7ec3ea;touch-action:none;
@@ -31,6 +31,14 @@
   #banner.show{animation:ban 1.7s ease;}
   @keyframes ban{0%{opacity:0;transform:scale(.55)}15%{opacity:1;transform:scale(1.1)}
                  30%{transform:scale(1)}75%{opacity:1}100%{opacity:0}}
+  /* keep the HUD clear of the iPhone notch / Dynamic Island */
+  @supports (top: env(safe-area-inset-top)) {
+    #score{top:calc(12px + env(safe-area-inset-top));left:calc(14px + env(safe-area-inset-left));}
+    #coinbox{top:calc(52px + env(safe-area-inset-top));left:calc(14px + env(safe-area-inset-left));}
+    #power{top:calc(12px + env(safe-area-inset-top));right:calc(14px + env(safe-area-inset-right));}
+    #level{top:calc(12px + env(safe-area-inset-top));}
+    #bossbar{top:calc(46px + env(safe-area-inset-top));}
+  }
   .ovl{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
        justify-content:center;text-align:center;color:#fff;background:rgba(8,18,38,.55);
        backdrop-filter:blur(3px);}
