@@ -35,6 +35,9 @@ jobs:
           - name: SubwayDash
             project: SubwayDashiOS/SubwayDash.xcodeproj
             scheme: SubwayDash
+          - name: BrawlArena
+            project: BrawlArenaiOS/BrawlArena.xcodeproj
+            scheme: BrawlArena
     steps:
       - name: Checkout
         uses: actions/checkout@v4

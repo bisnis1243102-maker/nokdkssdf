@@ -11,6 +11,7 @@ on:
     paths:
       - 'AndroidGame/**'
       - 'SubwayRunner/**'
+      - 'BrawlArena/**'
       - '.github/workflows/build-apk.yml'
   workflow_dispatch:
 
@@ -28,6 +29,8 @@ jobs:
             dir: AndroidGame
           - name: SubwayDash
             dir: SubwayRunner
+          - name: BrawlArena
+            dir: BrawlArena
     steps:
       - name: Checkout
         uses: actions/checkout@v4
