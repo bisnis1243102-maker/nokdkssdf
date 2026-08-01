@@ -108,7 +108,6 @@ final class RenderPipeline {
                 "draw": "DRAW_QUAD",
                 "metalVertexShader": "nr_quad_vertex",
                 "metalFragmentShader": "nr_zero_fragment",
-                "inputs": [:],
                 "outputs": ["color": "nrZero"],
             ]
             sequence.insert("nrZeroPass", at: 0)

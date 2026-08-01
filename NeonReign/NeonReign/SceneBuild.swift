@@ -167,13 +167,19 @@ extension GameSceneView.Coordinator {
                               district: District, ci: Int, ri: Int) {
         // Two to four towers per block, laid out on a small internal grid.
         let count = 2 + Int(rnd(ci, ri, 9) * 3)
-        let usable = CityWorld.blockSize - CityWorld.roadHalfWidth * 2 - 4
+        // How far a footprint's edge may sit from the block centre before it
+        // would spill onto the carriageway.
+        let buildable = CityWorld.blockSize / 2 - CityWorld.roadHalfWidth - 1.5
 
         for i in 0..<count {
-            let ox = (rnd(ci * 7 + i, ri, 13) - 0.5) * usable * 0.55
-            let oz = (rnd(ci, ri * 7 + i, 17) - 0.5) * usable * 0.55
-            let w = CGFloat(9 + rnd(ci + i, ri, 21) * 12)
-            let d = CGFloat(9 + rnd(ci, ri + i, 23) * 12)
+            let w = CGFloat(8 + rnd(ci + i, ri, 21) * 9)
+            let d = CGFloat(8 + rnd(ci, ri + i, 23) * 9)
+
+            // Offsets are bounded by the footprint, so nothing blocks a road.
+            let roomX = max(0, buildable - Float(w) / 2)
+            let roomZ = max(0, buildable - Float(d) / 2)
+            let ox = (rnd(ci * 7 + i, ri, 13) - 0.5) * 2 * roomX
+            let oz = (rnd(ci, ri * 7 + i, 17) - 0.5) * 2 * roomZ
 
             let base: Float
             switch district.height {

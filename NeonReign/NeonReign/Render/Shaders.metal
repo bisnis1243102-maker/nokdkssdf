@@ -13,9 +13,13 @@
 //
 
 #include <metal_stdlib>
-#include <SceneKit/scn_metal>
 
 using namespace metal;
+
+// scn_metal declares its uniform structs with unqualified `float4x4`, so it
+// only compiles once `metal` is in scope — this include must stay below the
+// using-directive.
+#include <SceneKit/scn_metal>
 
 // MARK: - Shared quad plumbing
 
@@ -121,8 +125,6 @@ fragment half4 nr_ssr_fragment(QuadOut v [[stage_in]],
                                texture2d<float, access::sample> depthSampler [[texture(1)]],
                                constant float &uWetness [[buffer(0)]])
 {
-    float3 base = colorSampler.sample(nr_sampler, v.uv).rgb;
-
     // Ground occupies roughly the bottom of the frame with a chase camera.
     float groundMask = smoothstep(0.52, 0.78, v.uv.y);
     if (groundMask <= 0.001 || uWetness <= 0.001) {
