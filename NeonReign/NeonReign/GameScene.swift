@@ -174,7 +174,9 @@ struct GameSceneView: UIViewRepresentable {
             // follows the tier chosen at launch.
             let p = RenderPipeline(quality: model.quality)
             pipeline = p
-            view.technique = p.technique
+            // The custom post chain is opt-in while we work out which layer
+            // was blacking out the frame on device.
+            view.technique = model.renderMode.wantsTechnique ? p.technique : nil
             applyCameraGrade()
         }
 
@@ -183,6 +185,25 @@ struct GameSceneView: UIViewRepresentable {
         func applyCameraGrade() {
             guard let cam = cameraNode.camera else { return }
             let q = model.quality
+
+            // Plain mode strips every effect back to stock SceneKit, so a black
+            // frame there would mean the problem is the world, not the grade.
+            guard model.renderMode.wantsCameraEffects else {
+                cam.wantsHDR = false
+                cam.wantsExposureAdaptation = false
+                cam.bloomIntensity = 0
+                cam.motionBlurIntensity = 0
+                cam.screenSpaceAmbientOcclusionIntensity = 0
+                cam.colorFringeIntensity = 0
+                cam.vignettingIntensity = 0
+                cam.contrast = 0
+                cam.saturation = 1
+                cam.zFar = 900
+                cam.zNear = 0.1
+                cam.fieldOfView = 62
+                return
+            }
+
             cam.wantsHDR = true
             cam.wantsExposureAdaptation = true
             cam.exposureAdaptationBrighteningSpeedFactor = 0.4

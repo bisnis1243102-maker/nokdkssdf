@@ -78,6 +78,43 @@ enum GraphicsQuality: Int, CaseIterable, Identifiable {
     static var deviceDefault: GraphicsQuality { .balanced }
 }
 
+/// Which layers of the render path are active.
+///
+/// This exists because the first build that reached a phone rendered a black
+/// frame at a healthy 60fps — the simulation was running, nothing was visible.
+/// Splitting the path into three selectable layers turns "it's black" into
+/// "it's black at *this* layer", which is the difference between fixing it and
+/// guessing.
+enum RenderMode: Int, CaseIterable, Identifiable {
+    /// Plain SceneKit. No HDR, no camera effects, no custom passes.
+    case plain = 0
+    /// SceneKit's own HDR camera effects, but none of the custom Metal passes.
+    case cameraFX = 1
+    /// Everything, including the SCNTechnique post chain.
+    case full = 2
+
+    var id: Int { rawValue }
+
+    var label: String {
+        switch self {
+        case .plain:    return "Plain"
+        case .cameraFX: return "Camera FX"
+        case .full:     return "Full"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .plain:    return "No effects at all. If the city is visible here, the world is fine."
+        case .cameraFX: return "SceneKit HDR, bloom and SSAO. No custom Metal passes."
+        case .full:     return "Adds the custom post chain: bloom tiers, reflections, shafts, grade."
+        }
+    }
+
+    var wantsCameraEffects: Bool { self != .plain }
+    var wantsTechnique: Bool { self == .full }
+}
+
 /// Whether the player is behind the wheel or on the pavement.
 enum PlayerMode {
     case driving, onFoot
@@ -114,11 +151,20 @@ final class GameModel: ObservableObject {
     /// Bumped when the renderer must be rebuilt for a new quality tier.
     @Published var qualityVersion = 0
 
+    /// Which layers of the render path run. Changing it rebuilds the renderer.
+    @Published var renderMode: RenderMode {
+        didSet {
+            UserDefaults.standard.set(renderMode.rawValue, forKey: Keys.renderMode)
+            qualityVersion += 1
+        }
+    }
+
     private enum Keys {
         static let cash = "neonreign.cash"
         static let done = "neonreign.missionsDone"
         static let quality = "neonreign.quality"
         static let diagnostics = "neonreign.showDiagnostics"
+        static let renderMode = "neonreign.renderMode"
     }
 
     init() {
@@ -142,6 +188,16 @@ final class GameModel: ObservableObject {
 
         // On by default while we are still proving this build runs at all.
         showDiagnostics = d.object(forKey: Keys.diagnostics) as? Bool ?? true
+
+        // Default to Camera FX, not Full: the custom post chain is the prime
+        // suspect for the black frame, and a visible city beats an invisible
+        // one with better grading.
+        if let raw = d.object(forKey: Keys.renderMode) as? Int,
+           let m = RenderMode(rawValue: raw) {
+            renderMode = m
+        } else {
+            renderMode = .cameraFX
+        }
 
         // Everything without a default is initialised by this point, so `self`
         // is usable — these two must not be assigned any earlier.

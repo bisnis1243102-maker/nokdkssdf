@@ -6,7 +6,12 @@ import SceneKit
 /// turns the city's lights on.
 struct SkyState {
     /// Hours, 0...24.
-    var hour: Double = 21.0
+    ///
+    /// Starts at midday deliberately. The first build to reach a phone rendered
+    /// black, and a night start makes "broken" and "correctly very dark" look
+    /// identical — daylight makes a working frame unmistakable. The full 24h
+    /// cycle still runs from here.
+    var hour: Double = 13.0
 
     /// Sun elevation in radians. Negative means below the horizon.
     var sunElevation: Float {
@@ -52,7 +57,9 @@ struct SkyState {
                        blue: 0.30 + d * 0.32, alpha: 1)
     }
 
-    var ambientIntensity: CGFloat { 180 + CGFloat(daylight) * 320 }
+    /// The night floor is deliberately not near-zero: an unlit city reads as a
+    /// black screen, which is indistinguishable from a rendering failure.
+    var ambientIntensity: CGFloat { 300 + CGFloat(daylight) * 320 }
 
     /// Colours of the sky gradient, top to horizon.
     var zenith: (CGFloat, CGFloat, CGFloat) {

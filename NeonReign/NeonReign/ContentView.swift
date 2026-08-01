@@ -101,9 +101,13 @@ struct ContentView: View {
                 MiniMap(model: model)
                 Spacer()
                 speedo
+                    // Clear of the pedal cluster, which owns the bottom-right.
+                    .padding(.trailing, 150)
             }
             .padding(.horizontal, 22)
-            .padding(.bottom, 96)
+            // High enough that the analogue stick does not sit on top of the
+            // minimap in landscape.
+            .padding(.bottom, 150)
         }
         .allowsHitTesting(true)
     }
@@ -251,6 +255,7 @@ private struct DiagnosticsPanel: View {
                 warn: model.textureMB > 150)
             row("Buildings", "\(model.buildingCount)", warn: false)
             row("Quality", model.quality.label, warn: false)
+            row("Renderer", model.renderMode.label, warn: false)
 
             if model.autoDowngraded {
                 Text("auto-downgraded (low memory)")
@@ -263,11 +268,13 @@ private struct DiagnosticsPanel: View {
                     .foregroundColor(.red)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
         .padding(.trailing, 14)
-        .padding(.top, 96)
+        // Sits directly under the menu button; any lower and it collides with
+        // the Get out button on a landscape phone.
+        .padding(.top, 58)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .allowsHitTesting(false)
     }
@@ -280,8 +287,8 @@ private struct DiagnosticsPanel: View {
             Text(value)
                 .foregroundColor(warn ? .orange : .white)
         }
-        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-        .frame(width: 150, alignment: .leading)
+        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+        .frame(width: 132, alignment: .leading)
     }
 }
 
@@ -464,6 +471,21 @@ private struct MenuView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
+                }
+
+                Section("Renderer") {
+                    Picker("Renderer", selection: $model.renderMode) {
+                        ForEach(RenderMode.allCases) { m in
+                            Text(m.label).tag(m)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(model.renderMode.blurb)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("If the world is black, step down through these: whichever one shows the city tells us which layer is at fault.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Graphics") {
