@@ -1,5 +1,6 @@
 import SwiftUI
 import SceneKit
+import os.log
 
 /// Hosts the SceneKit view and owns the simulation.
 struct GameSceneView: UIViewRepresentable {
@@ -75,8 +76,11 @@ struct GameSceneView: UIViewRepresentable {
         var buildings: [(Float, Float, Float, Float)] = []
         var streetLights: [SCNNode] = []
         var neonMaterials: [SCNMaterial] = []
-        /// Facade materials whose window emission is raised after dark.
+        /// Facade materials whose window emission is raised after dark. One
+        /// entry per (district, style, tiling) combination, not per building.
         var emissiveFacades: [SCNMaterial] = []
+        /// Shared facade materials, keyed by that same combination.
+        var facadeMaterials: [String: SCNMaterial] = [:]
 
         // Actors
         var traffic: [AICar] = []
@@ -117,6 +121,13 @@ struct GameSceneView: UIViewRepresentable {
         var lastFrameTime: TimeInterval = 0
         var hudAccum: Float = 0
         var totalTime: Double = 0
+        /// Drives the ~4Hz bucket of work that must not run every frame:
+        /// regenerating the sky image and re-sorting the light pool.
+        var slowAccum: Float = 0
+        /// The game hour the cached sky image was drawn for.
+        var skyImageHour: Double = -1
+        /// Nearest-first light ordering, refreshed on the slow tick.
+        var sortedLights: [SCNNode] = []
 
         func attach(to view: SCNView) {
             self.view = view
@@ -125,7 +136,10 @@ struct GameSceneView: UIViewRepresentable {
         }
 
         func rebuildPipeline(for view: SCNView) {
-            TextureFactory.flush()
+            // Deliberately *not* flushing the texture cache here: the world is
+            // already built and holds references to those images, so dropping
+            // them would free nothing and regenerate nothing. Map resolution
+            // follows the tier chosen at launch.
             let p = RenderPipeline(quality: model.quality)
             pipeline = p
             view.technique = p.technique
@@ -219,6 +233,13 @@ struct GameSceneView: UIViewRepresentable {
             scene.rootNode.addChildNode(weatherAnchor)
             weather.attachRain(to: weatherAnchor)
 
+            // What the procedural textures actually cost. A regression in the
+            // cache keys shows up here as a number instead of as a dead app.
+            os_log("NeonReign world built: %ld textures, %.1f MB, %ld buildings",
+                   log: .default, type: .info,
+                   TextureFactory.cacheCount, TextureFactory.generatedTextureMB,
+                   buildings.count)
+
             // Start the player at the lockup, in their car.
             let start = CityWorld.point("Your lockup")
             carX = start.x; carZ = start.y
@@ -228,8 +249,9 @@ struct GameSceneView: UIViewRepresentable {
             return scene
         }
 
-        /// Pushes the current time of day into the lights, sky and environment.
-        func applySky() {
+        /// Per-frame slice of the time-of-day update: just the two lights and
+        /// the fog colour. Cheap enough to run every tick.
+        func applySunLighting() {
             sunNode.light?.color = sky.sunColor
             sunNode.light?.intensity = sky.sunIntensity
             ambientNode.light?.color = sky.ambientColor
@@ -238,16 +260,26 @@ struct GameSceneView: UIViewRepresentable {
             // Sun direction from elevation + azimuth.
             sunNode.eulerAngles = SCNVector3(-sky.sunElevation - 0.15, sky.sunAzimuth, 0)
 
-            let img = Sky.gradient(sky)
-            scene.background.contents = img
-            scene.lightingEnvironment.contents = img
-            scene.lightingEnvironment.intensity = CGFloat(0.35 + sky.daylight * 1.5)
-
-            let night = 1 - sky.daylight
             scene.fogColor = UIColor(red: CGFloat(0.06 + sky.daylight * 0.30),
                                      green: CGFloat(0.07 + sky.daylight * 0.34),
                                      blue: CGFloat(0.13 + sky.daylight * 0.38),
                                      alpha: 1)
+        }
+
+        /// The expensive slice: redrawing the sky image and walking every
+        /// emissive material in the city. Regenerating this per frame is what
+        /// made the game unplayable, so it runs on the slow tick and only when
+        /// the clock has actually moved.
+        func applySkyEnvironment(force: Bool = false) {
+            if force || abs(sky.hour - skyImageHour) > 0.05 {
+                skyImageHour = sky.hour
+                let img = Sky.gradient(sky)
+                scene.background.contents = img
+                scene.lightingEnvironment.contents = img
+            }
+            scene.lightingEnvironment.intensity = CGFloat(0.35 + sky.daylight * 1.5)
+
+            let night = 1 - sky.daylight
 
             // Night switches the city's own lighting on.
             for m in neonMaterials {
@@ -266,6 +298,12 @@ struct GameSceneView: UIViewRepresentable {
             }
         }
 
+        /// Both halves at once — used during scene construction.
+        func applySky() {
+            applySunLighting()
+            applySkyEnvironment(force: true)
+        }
+
         // MARK: - Per-frame
 
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
@@ -279,7 +317,15 @@ struct GameSceneView: UIViewRepresentable {
             // Time of day: a full 24h cycle every 20 minutes of play.
             sky.hour += Double(dt) * (24.0 / (20 * 60))
             if sky.hour >= 24 { sky.hour -= 24 }
-            applySky()
+            applySunLighting()
+
+            // Everything that must not run at 60Hz.
+            slowAccum += dt
+            let slowTick = slowAccum >= 0.25
+            if slowTick {
+                slowAccum = 0
+                applySkyEnvironment()
+            }
 
             weather.update(dt: dt, scene: scene, speed: mode == .driving ? carSpeed : 0)
 
@@ -296,7 +342,7 @@ struct GameSceneView: UIViewRepresentable {
             updateMissionTargetCar(dt: dt)
             updateMission(dt: dt)
             updateMarkers()
-            streamLights()
+            streamLights(resort: slowTick)
             updateCamera(dt: dt)
 
             pipeline?.update(sky: sky,
@@ -367,22 +413,32 @@ struct GameSceneView: UIViewRepresentable {
         // switched off. Without this the city would carry hundreds of live
         // lights and the shadow pass would collapse.
 
-        private func streamLights() {
-            let px = mode == .driving ? carX : footX
-            let pz = mode == .driving ? carZ : footZ
+        private func streamLights(resort: Bool) {
             let budget = model.quality.liveLights
             let night = 1 - sky.daylight
 
-            // World position, because sign lights are children of buildings.
-            var scored: [(Float, SCNNode)] = streetLights.map { n in
-                let w = n.worldPosition
-                let dx = w.x - px, dz = w.z - pz
-                return (dx * dx + dz * dz, n)
+            // Sorting several hundred lights is far too expensive to do every
+            // frame, and the ordering barely changes between ticks — so it is
+            // recomputed on the slow tick and reused in between.
+            if resort || sortedLights.isEmpty {
+                let px = mode == .driving ? carX : footX
+                let pz = mode == .driving ? carZ : footZ
+                // World position, because sign lights are children of buildings.
+                var scored: [(Float, SCNNode)] = streetLights.map { n in
+                    let w = n.worldPosition
+                    let dx = w.x - px, dz = w.z - pz
+                    return (dx * dx + dz * dz, n)
+                }
+                scored.sort { $0.0 < $1.0 }
+                sortedLights = scored.map { $0.1 }
+            } else if night <= 0.15 {
+                // Nothing to do: the pool was already switched off below.
+                return
             }
-            scored.sort { $0.0 < $1.0 }
-            for (i, entry) in scored.enumerated() {
+
+            for (i, node) in sortedLights.enumerated() {
                 let on = i < budget && night > 0.15
-                entry.1.light?.intensity = on ? CGFloat(night) * 900 : 0
+                node.light?.intensity = on ? CGFloat(night) * 900 : 0
             }
         }
 

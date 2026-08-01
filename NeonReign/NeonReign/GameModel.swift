@@ -20,7 +20,7 @@ enum GraphicsQuality: Int, CaseIterable, Identifiable {
         switch self {
         case .balanced: return "Bloom + tonemap. Smoothest."
         case .high:     return "Adds reflections and light shafts."
-        case .ultra:    return "Everything, plus temporal AA."
+        case .ultra:    return "Everything, plus FXAA."
         }
     }
 
@@ -35,11 +35,15 @@ enum GraphicsQuality: Int, CaseIterable, Identifiable {
         case .ultra:    return 4096
         }
     }
+    /// Requested map resolution. `TextureFactory` caps this per surface class:
+    /// roads get the full size, everything else is held at 256, because a
+    /// facade seen from the street gains nothing from more pixels and the
+    /// memory cost is multiplied by every style in the city.
     var textureSize: Int {
         switch self {
         case .balanced: return 256
         case .high:     return 512
-        case .ultra:    return 1024
+        case .ultra:    return 512
         }
     }
 
@@ -68,14 +72,10 @@ enum GraphicsQuality: Int, CaseIterable, Identifiable {
         }
     }
 
-    /// The Simulator software-renders Metal, so never start it on ultra.
-    static var deviceDefault: GraphicsQuality {
-        #if targetEnvironment(simulator)
-        return .balanced
-        #else
-        return ProcessInfo.processInfo.processorCount >= 6 ? .ultra : .high
-        #endif
-    }
+    /// First launch always starts on the cheapest tier — a run that works
+    /// beats a run that looks marginally better and gets killed. High and Ultra
+    /// are one tap away in the ☰ menu, and the choice is remembered.
+    static var deviceDefault: GraphicsQuality { .balanced }
 }
 
 /// Whether the player is behind the wheel or on the pavement.

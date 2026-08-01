@@ -8,22 +8,65 @@ import SceneKit
 /// thousands of nodes, and regenerating them per node would stall the load.
 enum TextureFactory {
 
+    // MARK: Variant caps
+    //
+    // Textures vary by *style*, never by instance. Keying the cache on a
+    // per-building seed is what made the city allocate ~300 map sets and get
+    // the app killed on launch; every entry point below folds its seed into a
+    // small fixed range so the cache size is bounded by construction.
+
+    static let facadeVariants = 3
+    static let neonVariants = 8
+    static let metalVariants = 4
+
+    /// Folds any seed into `0..<count`, negatives included.
+    static func variant(_ seed: Int, _ count: Int) -> Int {
+        ((seed % count) + count) % count
+    }
+
+    // MARK: Resolution caps
+    //
+    // Only the road really benefits from resolution and the 16x anisotropy —
+    // it is the surface the camera looks straight down. Everything else is seen
+    // at distance and is capped much lower.
+
+    static func roadSize(_ tier: Int) -> Int { min(512, tier) }
+    static func detailSize(_ tier: Int) -> Int { min(256, tier) }
+
     // MARK: Cache
 
     private static var cache: [String: UIImage] = [:]
     private static let lock = NSLock()
+    /// Running total of generated pixel data, so a regression shows up as a
+    /// number in the log rather than as a blank screen.
+    private static var generatedBytes = 0
+
+    /// Approximate size of everything generated so far, in megabytes.
+    static var generatedTextureMB: Double {
+        lock.lock(); defer { lock.unlock() }
+        return Double(generatedBytes) / 1_000_000
+    }
+
+    static var cacheCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return cache.count
+    }
 
     private static func cached(_ key: String, _ make: () -> UIImage) -> UIImage {
         lock.lock(); defer { lock.unlock() }
         if let hit = cache[key] { return hit }
         let img = make()
         cache[key] = img
+        generatedBytes += Int(img.size.width * img.size.height * 4)
         return img
     }
 
     /// Dropped when the quality tier changes, since map resolution changes too.
     static func flush() {
-        lock.lock(); cache.removeAll(); lock.unlock()
+        lock.lock()
+        cache.removeAll()
+        generatedBytes = 0
+        lock.unlock()
     }
 
     // MARK: Low-level drawing
@@ -230,6 +273,8 @@ enum TextureFactory {
     // albedo and an emission mask returned separately for night.
 
     static func facade(size: Int, tint: UIColor, seed: Int) -> MapSet {
+        // One of a handful of styles per district, never one per building.
+        let seed = variant(seed, facadeVariants)
         let key = "facade-\(size)-\(tint.hashValue)-\(seed)"
         let albedo = cached(key + "-a") {
             image(size) { ctx, s in
@@ -296,7 +341,8 @@ enum TextureFactory {
 
     /// Emission mask for a facade: lit window cells glow at night.
     static func facadeEmission(size: Int, seed: Int, warm: UIColor) -> UIImage {
-        cached("facade-e-\(size)-\(seed)-\(warm.hashValue)") {
+        let seed = variant(seed, facadeVariants)
+        return cached("facade-e-\(size)-\(seed)-\(warm.hashValue)") {
             image(size) { ctx, s in
                 ctx.setFillColor(UIColor.black.cgColor)
                 ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
@@ -318,7 +364,8 @@ enum TextureFactory {
 
     /// A glowing sign panel: bold bars of colour on black, used as emission.
     static func neonSign(size: Int, color: UIColor, seed: Int) -> UIImage {
-        cached("neon-\(size)-\(color.hashValue)-\(seed)") {
+        let seed = variant(seed, neonVariants)
+        return cached("neon-\(size)-\(color.hashValue)-\(seed)") {
             image(size) { ctx, s in
                 ctx.setFillColor(UIColor.black.cgColor)
                 ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
@@ -340,6 +387,7 @@ enum TextureFactory {
     // MARK: Metal / grime for props
 
     static func paintedMetal(size: Int, tint: UIColor, seed: Int) -> MapSet {
+        let seed = variant(seed, metalVariants)
         let key = "metal-\(size)-\(tint.hashValue)-\(seed)"
         let albedo = cached(key + "-a") {
             image(size) { ctx, s in

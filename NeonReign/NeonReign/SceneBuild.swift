@@ -21,7 +21,8 @@ extension GameSceneView.Coordinator {
         let size = CGFloat(CityWorld.half * 2 + 200)
         let plane = SCNPlane(width: size, height: size)
         let m = plane.firstMaterial!
-        let set = TextureFactory.asphalt(size: model.quality.textureSize, laneMarking: false)
+        let set = TextureFactory.asphalt(size: TextureFactory.detailSize(model.quality.textureSize),
+                                         laneMarking: false)
         TextureFactory.apply(set, to: m, repeatX: 90, repeatY: 90)
         // The ground between blocks reads as dark hardstanding, not tarmac.
         m.diffuse.intensity = 0.55
@@ -39,7 +40,8 @@ extension GameSceneView.Coordinator {
     func buildRoads() {
         let span = CGFloat(CityWorld.half * 2)
         let width = CGFloat(CityWorld.roadHalfWidth * 2)
-        let set = TextureFactory.asphalt(size: model.quality.textureSize, laneMarking: true)
+        let set = TextureFactory.asphalt(size: TextureFactory.roadSize(model.quality.textureSize),
+                                         laneMarking: true)
 
         for a in CityWorld.avenues {
             for vertical in [true, false] {
@@ -141,7 +143,7 @@ extension GameSceneView.Coordinator {
         let inner = CGFloat(CityWorld.blockSize - CityWorld.roadHalfWidth * 2)
         let plane = SCNPlane(width: inner, height: inner)
         let m = plane.firstMaterial!
-        TextureFactory.apply(TextureFactory.sidewalk(size: model.quality.textureSize),
+        TextureFactory.apply(TextureFactory.sidewalk(size: TextureFactory.detailSize(model.quality.textureSize)),
                              to: m, repeatX: 6, repeatY: 6)
         ShaderModifiers.applyWetRoad(to: m)
         weather.register(wetMaterial: m)
@@ -191,20 +193,38 @@ extension GameSceneView.Coordinator {
 
             let box = SCNBox(width: w, height: h, length: d, chamferRadius: 0.25)
             let seed = ci * 131 + ri * 17 + i
-            let m = box.firstMaterial!
-            TextureFactory.apply(TextureFactory.facade(size: model.quality.textureSize,
-                                                       tint: district.tint, seed: seed),
-                                 to: m,
-                                 repeatX: max(1, w / 9),
-                                 repeatY: max(1, h / 9))
-            m.emission.contents = TextureFactory.facadeEmission(
-                size: model.quality.textureSize, seed: seed,
-                warm: UIColor(red: 1.0, green: 0.84, blue: 0.58, alpha: 1))
-            m.emission.wrapS = .repeat
-            m.emission.wrapT = .repeat
-            m.emission.contentsTransform = SCNMatrix4MakeScale(Float(max(1, w / 9)),
-                                                               Float(max(1, h / 9)), 1)
-            m.emission.intensity = 0.0     // raised at night by applySky
+
+            // Facades share one material per (district, style, tiling bucket).
+            // Tiling is quantised so neighbouring buildings can reuse the same
+            // material instead of each allocating its own.
+            let tileX = max(1, (w / 9).rounded())
+            let tileY = max(1, (h / 9).rounded())
+            let style = TextureFactory.variant(seed, TextureFactory.facadeVariants)
+            let districtIndex = CityWorld.index(x: blockX, z: blockZ)
+            let matKey = "f-\(districtIndex)-\(style)-\(Int(tileX))-\(Int(tileY))"
+
+            let m: SCNMaterial
+            if let shared = facadeMaterials[matKey] {
+                m = shared
+            } else {
+                let made = SCNMaterial()
+                let mapSize = TextureFactory.detailSize(model.quality.textureSize)
+                TextureFactory.apply(TextureFactory.facade(size: mapSize,
+                                                           tint: district.tint, seed: seed),
+                                     to: made, repeatX: tileX, repeatY: tileY)
+                made.emission.contents = TextureFactory.facadeEmission(
+                    size: mapSize, seed: seed,
+                    warm: UIColor(red: 1.0, green: 0.84, blue: 0.58, alpha: 1))
+                made.emission.wrapS = .repeat
+                made.emission.wrapT = .repeat
+                made.emission.contentsTransform =
+                    SCNMatrix4MakeScale(Float(tileX), Float(tileY), 1)
+                made.emission.intensity = 0.0     // raised at night by applySky
+                facadeMaterials[matKey] = made
+                emissiveFacades.append(made)
+                m = made
+            }
+            box.firstMaterial = m
 
             let node = SCNNode(geometry: box)
             let bx = blockX + ox, bz = blockZ + oz
@@ -213,7 +233,6 @@ extension GameSceneView.Coordinator {
             scene.rootNode.addChildNode(node)
 
             buildings.append((bx, bz, Float(w) / 2, Float(d) / 2))
-            emissiveFacades.append(m)
 
             addRoofDetail(on: node, size: SIMD3<Float>(Float(w), Float(h), Float(d)),
                           seed: seed)
