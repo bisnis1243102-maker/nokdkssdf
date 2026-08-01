@@ -50,9 +50,15 @@ Everything below is custom code in `NeonReign/Render/`, not SceneKit defaults:
 
 | Tier | What runs |
 |---|---|
-| **Balanced** | Bloom + grade. No SSR, no shafts, no FXAA. Default in the Simulator, which software-renders Metal. |
+| **Balanced** | Bloom + grade. No SSR, no shafts, no FXAA. **The default on every device** — a first run that works beats one that looks better and gets killed. |
 | **High** | Adds screen-space reflections, light shafts, motion blur, 2× MSAA. |
-| **Ultra** | Adds FXAA, 4× MSAA, 4K shadow maps, 3 shadow cascades, 1024px textures, 18 live lights. |
+| **Ultra** | Adds FXAA, 4× MSAA, 4K shadow maps, 3 shadow cascades, 18 live lights. |
+
+Texture resolution is capped per surface class rather than by tier: roads get up
+to 512px (where the 16× anisotropy pays), everything else is held at 256px. That
+cap, plus a hard limit on how many texture *styles* the city may generate, is
+what keeps the whole texture set around 46 MB instead of the gigabytes an
+earlier build tried to allocate.
 
 Switch tiers any time from the ☰ menu. If SceneKit rejects the technique on a
 given device, the game falls back to the camera's built-in HDR pipeline rather
@@ -84,6 +90,27 @@ than failing to render.
 - **Right side** — ▲ gas, ▼ brake/reverse, ✋ handbrake.
 - **Get out / Get in** — swap between driving and on foot.
 - **☰** — job list, graphics quality, abandon job, reset progress.
+
+## What to send me if something looks wrong
+
+This build reports on itself, because a sideloaded app has no debugger attached.
+The panel in the top-right corner (toggle it under ☰ → Diagnostics) shows:
+
+| Reading | What it means |
+|---|---|
+| **FPS** | Frame rate. Under ~25 means the tier is too expensive for the device. |
+| **Memory used** | Physical footprint — the number iOS judges when deciding to kill the app. |
+| **Headroom** | Bytes left before that kill. If this is small, the next crash is a memory crash. |
+| **Textures** | MB and image count generated procedurally. Should be roughly 46 MB. |
+| **Buildings** | How many the city built (~245). |
+
+Those five numbers, or a screenshot of the panel, are enough to tell whether the
+build is healthy on real hardware.
+
+If the app dies during startup, it leaves a breadcrumb: the **next** launch
+starts on Balanced and shows *"last launch died: <stage>"* — `buildingCity`
+means it was killed generating the world, `sceneReady` means it got further.
+That distinction is the difference between chasing the right bug and guessing.
 
 ## Installing on your iPhone with KSign
 
@@ -126,6 +153,7 @@ sideloading.
 | `GameModel.swift` | Input/HUD bridge, progress, quality tiers |
 | `CityWorld.swift` | Map extents, road grid, districts, landmarks |
 | `Missions.swift` | Objective kinds + the campaign, as data |
+| `Diagnostics.swift` | Memory/FPS readings, launch breadcrumbs, safe mode |
 | `MissionRunner.swift` | Objective state machine and world markers |
 | `GameScene.swift` | Scene setup, per-frame tick, camera, light streaming |
 | `SceneBuild.swift` | Ground, roads, blocks, parks, neon, landmarks |

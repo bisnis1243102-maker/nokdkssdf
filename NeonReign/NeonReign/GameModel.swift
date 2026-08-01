@@ -118,18 +118,37 @@ final class GameModel: ObservableObject {
         static let cash = "neonreign.cash"
         static let done = "neonreign.missionsDone"
         static let quality = "neonreign.quality"
+        static let diagnostics = "neonreign.showDiagnostics"
     }
 
     init() {
         let d = UserDefaults.standard
         cash = d.object(forKey: Keys.cash) as? Int ?? 250
         missionsCompleted = Set(d.array(forKey: Keys.done) as? [Int] ?? [])
-        if let raw = d.object(forKey: Keys.quality) as? Int,
-           let q = GraphicsQuality(rawValue: raw) {
+
+        // If the previous launch never reached a rendered frame, it was killed
+        // mid-startup. Come back in safe mode rather than repeating whatever
+        // did it, and remember the stage so the panel can show it.
+        let failed = Diagnostics.consumePreviousFailure()
+
+        if failed != nil {
+            quality = .balanced
+        } else if let raw = d.object(forKey: Keys.quality) as? Int,
+                  let q = GraphicsQuality(rawValue: raw) {
             quality = q
         } else {
             quality = GraphicsQuality.deviceDefault
         }
+
+        // On by default while we are still proving this build runs at all.
+        showDiagnostics = d.object(forKey: Keys.diagnostics) as? Bool ?? true
+
+        // Everything without a default is initialised by this point, so `self`
+        // is usable — these two must not be assigned any earlier.
+        lastFailedStage = failed
+        safeMode = failed != nil
+
+        Diagnostics.stamp(.started)
     }
 
     private func persist() {
@@ -137,6 +156,30 @@ final class GameModel: ObservableObject {
         d.set(cash, forKey: Keys.cash)
         d.set(Array(missionsCompleted), forKey: Keys.done)
     }
+
+    // MARK: Diagnostics
+    //
+    // This build has to report on itself: nobody can attach a debugger to a
+    // sideloaded app, so the numbers that decide whether it survives are put
+    // on screen where they can be read off and sent back.
+
+    @Published var showDiagnostics: Bool {
+        didSet { UserDefaults.standard.set(showDiagnostics, forKey: Keys.diagnostics) }
+    }
+    /// Physical footprint, MB — the figure iOS judges for jetsam.
+    @Published var footprintMB: Double = 0
+    /// Bytes left before the app is killed, MB.
+    @Published var availableMB: Double = 0
+    @Published var fps: Double = 0
+    @Published var textureMB: Double = 0
+    @Published var textureCount = 0
+    @Published var buildingCount = 0
+    /// Set when the memory guard pulled the quality tier down on its own.
+    @Published var autoDowngraded = false
+    /// Stage the *previous* launch died at, if it died.
+    @Published var lastFailedStage: Diagnostics.Stage? = nil
+    /// True when this launch started on Balanced because the last one failed.
+    @Published var safeMode = false
 
     // MARK: HUD state (pushed from the scene)
 

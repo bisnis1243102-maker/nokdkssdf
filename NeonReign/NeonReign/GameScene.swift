@@ -128,11 +128,43 @@ struct GameSceneView: UIViewRepresentable {
         var skyImageHour: Double = -1
         /// Nearest-first light ordering, refreshed on the slow tick.
         var sortedLights: [SCNNode] = []
+        /// Rolling frame-rate estimate for the diagnostics panel.
+        let frameCounter = Diagnostics.FrameCounter()
+        /// Set once the first frame has actually rendered.
+        var reachedFirstFrame = false
+        /// True once the memory guard has pulled the tier down by itself.
+        var didAutoDowngrade = false
 
         func attach(to view: SCNView) {
             self.view = view
             appliedQualityVersion = model.qualityVersion
             rebuildPipeline(for: view)
+
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(handleMemoryWarning),
+                name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
+        }
+
+        /// iOS is asking for memory back. Shed the expensive tier rather than
+        /// wait to be killed.
+        @objc func handleMemoryWarning() {
+            os_log("NeonReign memory warning at %.0f MB footprint",
+                   log: .default, type: .error, Diagnostics.footprintMB)
+            downgradeForMemory()
+        }
+
+        /// Drops to the cheapest tier and records that it was not the player's
+        /// choice, so the panel can say so.
+        func downgradeForMemory() {
+            guard !didAutoDowngrade else { return }
+            didAutoDowngrade = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.model.autoDowngraded = true
+                if self.model.quality != .balanced {
+                    self.model.quality = .balanced
+                }
+            }
         }
 
         func rebuildPipeline(for view: SCNView) {
@@ -214,7 +246,9 @@ struct GameSceneView: UIViewRepresentable {
 
             applySky()
 
-            // World geometry (SceneBuild.swift)
+            // World geometry (SceneBuild.swift). This is the expensive part of
+            // startup and the stage a memory kill would land in, so mark it.
+            Diagnostics.stamp(.buildingCity)
             buildGround()
             buildRoads()
             buildCity()
@@ -246,6 +280,7 @@ struct GameSceneView: UIViewRepresentable {
             carNode.position = SCNVector3(carX, 0.42, carZ)
             mode = .driving
 
+            Diagnostics.stamp(.sceneReady)
             return scene
         }
 
@@ -311,6 +346,14 @@ struct GameSceneView: UIViewRepresentable {
             lastFrameTime = time
             guard dt > 0 else { return }
             totalTime += Double(dt)
+            frameCounter.tick(dt: Double(dt))
+
+            if !reachedFirstFrame {
+                // Getting here at all means the launch succeeded: clear the
+                // breadcrumb so the next start does not think it crashed.
+                reachedFirstFrame = true
+                Diagnostics.stamp(.firstFrame)
+            }
 
             handleRequests()
 
@@ -325,6 +368,7 @@ struct GameSceneView: UIViewRepresentable {
             if slowTick {
                 slowAccum = 0
                 applySkyEnvironment()
+                sampleDiagnostics()
             }
 
             weather.update(dt: dt, scene: scene, speed: mode == .driving ? carSpeed : 0)
@@ -439,6 +483,35 @@ struct GameSceneView: UIViewRepresentable {
             for (i, node) in sortedLights.enumerated() {
                 let on = i < budget && night > 0.15
                 node.light?.intensity = on ? CGFloat(night) * 900 : 0
+            }
+        }
+
+        // MARK: Diagnostics
+
+        /// Reads the numbers that decide whether this build survives on a real
+        /// phone and pushes them to the panel. Runs on the 4Hz slow tick.
+        private func sampleDiagnostics() {
+            let footprint = Diagnostics.footprintMB
+            let available = Diagnostics.availableMB
+            let fps = frameCounter.fps
+            let texMB = TextureFactory.generatedTextureMB
+            let texCount = TextureFactory.cacheCount
+            let buildingCount = buildings.count
+
+            // Running out of headroom is the failure mode that killed this app
+            // before; shed quality while there is still room to react.
+            if available > 0 && available < 80 {
+                downgradeForMemory()
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.model.footprintMB = footprint
+                self.model.availableMB = available
+                self.model.fps = fps
+                self.model.textureMB = texMB
+                self.model.textureCount = texCount
+                self.model.buildingCount = buildingCount
             }
         }
 

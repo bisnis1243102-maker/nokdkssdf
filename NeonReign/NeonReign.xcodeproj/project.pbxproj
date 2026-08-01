@@ -12,17 +12,18 @@
 		3C0000000000000000000003 /* GameModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000003 /* GameModel.swift */; };
 		3C0000000000000000000004 /* CityWorld.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000004 /* CityWorld.swift */; };
 		3C0000000000000000000005 /* Missions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000005 /* Missions.swift */; };
-		3C0000000000000000000006 /* MissionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000006 /* MissionRunner.swift */; };
-		3C0000000000000000000007 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000007 /* GameScene.swift */; };
-		3C0000000000000000000008 /* SceneBuild.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000008 /* SceneBuild.swift */; };
-		3C0000000000000000000009 /* Vehicles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000009 /* Vehicles.swift */; };
-		3C000000000000000000000A /* Actors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000A /* Actors.swift */; };
-		3C000000000000000000000B /* RenderPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000B /* RenderPipeline.swift */; };
-		3C000000000000000000000C /* ShaderModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000C /* ShaderModifiers.swift */; };
-		3C000000000000000000000D /* TextureFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000D /* TextureFactory.swift */; };
-		3C000000000000000000000E /* Sky.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000E /* Sky.swift */; };
-		3C000000000000000000000F /* Weather.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000F /* Weather.swift */; };
-		3C0000000000000000000010 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000010 /* Shaders.metal */; };
+		3C0000000000000000000006 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000006 /* Diagnostics.swift */; };
+		3C0000000000000000000007 /* MissionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000007 /* MissionRunner.swift */; };
+		3C0000000000000000000008 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000008 /* GameScene.swift */; };
+		3C0000000000000000000009 /* SceneBuild.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000009 /* SceneBuild.swift */; };
+		3C000000000000000000000A /* Vehicles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000A /* Vehicles.swift */; };
+		3C000000000000000000000B /* Actors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000B /* Actors.swift */; };
+		3C000000000000000000000C /* RenderPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000C /* RenderPipeline.swift */; };
+		3C000000000000000000000D /* ShaderModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000D /* ShaderModifiers.swift */; };
+		3C000000000000000000000E /* TextureFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000E /* TextureFactory.swift */; };
+		3C000000000000000000000F /* Sky.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000000F /* Sky.swift */; };
+		3C0000000000000000000010 /* Weather.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000010 /* Weather.swift */; };
+		3C0000000000000000000011 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 2C0000000000000000000011 /* Shaders.metal */; };
 		3C000000000000000000005A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2C000000000000000000005A /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -32,17 +33,18 @@
 		2C0000000000000000000003 /* GameModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameModel.swift; sourceTree = "<group>"; };
 		2C0000000000000000000004 /* CityWorld.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityWorld.swift; sourceTree = "<group>"; };
 		2C0000000000000000000005 /* Missions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Missions.swift; sourceTree = "<group>"; };
-		2C0000000000000000000006 /* MissionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissionRunner.swift; sourceTree = "<group>"; };
-		2C0000000000000000000007 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
-		2C0000000000000000000008 /* SceneBuild.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneBuild.swift; sourceTree = "<group>"; };
-		2C0000000000000000000009 /* Vehicles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vehicles.swift; sourceTree = "<group>"; };
-		2C000000000000000000000A /* Actors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actors.swift; sourceTree = "<group>"; };
-		2C000000000000000000000B /* RenderPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderPipeline.swift; sourceTree = "<group>"; };
-		2C000000000000000000000C /* ShaderModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShaderModifiers.swift; sourceTree = "<group>"; };
-		2C000000000000000000000D /* TextureFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextureFactory.swift; sourceTree = "<group>"; };
-		2C000000000000000000000E /* Sky.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sky.swift; sourceTree = "<group>"; };
-		2C000000000000000000000F /* Weather.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weather.swift; sourceTree = "<group>"; };
-		2C0000000000000000000010 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		2C0000000000000000000006 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
+		2C0000000000000000000007 /* MissionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissionRunner.swift; sourceTree = "<group>"; };
+		2C0000000000000000000008 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
+		2C0000000000000000000009 /* SceneBuild.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneBuild.swift; sourceTree = "<group>"; };
+		2C000000000000000000000A /* Vehicles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vehicles.swift; sourceTree = "<group>"; };
+		2C000000000000000000000B /* Actors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actors.swift; sourceTree = "<group>"; };
+		2C000000000000000000000C /* RenderPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderPipeline.swift; sourceTree = "<group>"; };
+		2C000000000000000000000D /* ShaderModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShaderModifiers.swift; sourceTree = "<group>"; };
+		2C000000000000000000000E /* TextureFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextureFactory.swift; sourceTree = "<group>"; };
+		2C000000000000000000000F /* Sky.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sky.swift; sourceTree = "<group>"; };
+		2C0000000000000000000010 /* Weather.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weather.swift; sourceTree = "<group>"; };
+		2C0000000000000000000011 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 		2C000000000000000000005A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1C000000000000000000000F /* NeonReign.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NeonReign.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -74,11 +76,12 @@
 				2C0000000000000000000003 /* GameModel.swift */,
 				2C0000000000000000000004 /* CityWorld.swift */,
 				2C0000000000000000000005 /* Missions.swift */,
-				2C0000000000000000000006 /* MissionRunner.swift */,
-				2C0000000000000000000007 /* GameScene.swift */,
-				2C0000000000000000000008 /* SceneBuild.swift */,
-				2C0000000000000000000009 /* Vehicles.swift */,
-				2C000000000000000000000A /* Actors.swift */,
+				2C0000000000000000000006 /* Diagnostics.swift */,
+				2C0000000000000000000007 /* MissionRunner.swift */,
+				2C0000000000000000000008 /* GameScene.swift */,
+				2C0000000000000000000009 /* SceneBuild.swift */,
+				2C000000000000000000000A /* Vehicles.swift */,
+				2C000000000000000000000B /* Actors.swift */,
 				2C000000000000000000005A /* Assets.xcassets */,
 				1D0000000000000000000001 /* Render */,
 			);
@@ -88,12 +91,12 @@
 		1D0000000000000000000001 /* Render */ = {
 			isa = PBXGroup;
 			children = (
-				2C000000000000000000000B /* RenderPipeline.swift */,
-				2C000000000000000000000C /* ShaderModifiers.swift */,
-				2C000000000000000000000D /* TextureFactory.swift */,
-				2C000000000000000000000E /* Sky.swift */,
-				2C000000000000000000000F /* Weather.swift */,
-				2C0000000000000000000010 /* Shaders.metal */,
+				2C000000000000000000000C /* RenderPipeline.swift */,
+				2C000000000000000000000D /* ShaderModifiers.swift */,
+				2C000000000000000000000E /* TextureFactory.swift */,
+				2C000000000000000000000F /* Sky.swift */,
+				2C0000000000000000000010 /* Weather.swift */,
+				2C0000000000000000000011 /* Shaders.metal */,
 			);
 			path = Render;
 			sourceTree = "<group>";
@@ -180,17 +183,18 @@
 				3C0000000000000000000003 /* GameModel.swift in Sources */,
 				3C0000000000000000000004 /* CityWorld.swift in Sources */,
 				3C0000000000000000000005 /* Missions.swift in Sources */,
-				3C0000000000000000000006 /* MissionRunner.swift in Sources */,
-				3C0000000000000000000007 /* GameScene.swift in Sources */,
-				3C0000000000000000000008 /* SceneBuild.swift in Sources */,
-				3C0000000000000000000009 /* Vehicles.swift in Sources */,
-				3C000000000000000000000A /* Actors.swift in Sources */,
-				3C000000000000000000000B /* RenderPipeline.swift in Sources */,
-				3C000000000000000000000C /* ShaderModifiers.swift in Sources */,
-				3C000000000000000000000D /* TextureFactory.swift in Sources */,
-				3C000000000000000000000E /* Sky.swift in Sources */,
-				3C000000000000000000000F /* Weather.swift in Sources */,
-				3C0000000000000000000010 /* Shaders.metal in Sources */,
+				3C0000000000000000000006 /* Diagnostics.swift in Sources */,
+				3C0000000000000000000007 /* MissionRunner.swift in Sources */,
+				3C0000000000000000000008 /* GameScene.swift in Sources */,
+				3C0000000000000000000009 /* SceneBuild.swift in Sources */,
+				3C000000000000000000000A /* Vehicles.swift in Sources */,
+				3C000000000000000000000B /* Actors.swift in Sources */,
+				3C000000000000000000000C /* RenderPipeline.swift in Sources */,
+				3C000000000000000000000D /* ShaderModifiers.swift in Sources */,
+				3C000000000000000000000E /* TextureFactory.swift in Sources */,
+				3C000000000000000000000F /* Sky.swift in Sources */,
+				3C0000000000000000000010 /* Weather.swift in Sources */,
+				3C0000000000000000000011 /* Shaders.metal in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

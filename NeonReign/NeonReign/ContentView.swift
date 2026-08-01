@@ -12,6 +12,10 @@ struct ContentView: View {
             hud
             controls
 
+            if model.showDiagnostics {
+                DiagnosticsPanel(model: model)
+            }
+
             if let r = model.result {
                 resultCard(r)
             }
@@ -225,6 +229,62 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Diagnostics panel
+//
+// A sideloaded build has no debugger attached, so the app reports its own
+// vitals. These are the numbers that say whether it survives on real hardware:
+// footprint is what iOS judges for jetsam, and headroom is how close the next
+// kill is.
+
+private struct DiagnosticsPanel: View {
+    @ObservedObject var model: GameModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            row("FPS", String(format: "%.0f", model.fps),
+                warn: model.fps > 0 && model.fps < 25)
+            row("Memory used", String(format: "%.0f MB", model.footprintMB),
+                warn: model.footprintMB > 900)
+            row("Headroom", String(format: "%.0f MB", model.availableMB),
+                warn: model.availableMB > 0 && model.availableMB < 150)
+            row("Textures", String(format: "%.0f MB / %d", model.textureMB, model.textureCount),
+                warn: model.textureMB > 150)
+            row("Buildings", "\(model.buildingCount)", warn: false)
+            row("Quality", model.quality.label, warn: false)
+
+            if model.autoDowngraded {
+                Text("auto-downgraded (low memory)")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(.orange)
+            }
+            if let stage = model.lastFailedStage {
+                Text("last launch died: \(stage.rawValue)")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(.red)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.trailing, 14)
+        .padding(.top, 96)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .allowsHitTesting(false)
+    }
+
+    private func row(_ label: String, _ value: String, warn: Bool) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .foregroundColor(.white.opacity(0.6))
+            Spacer(minLength: 8)
+            Text(value)
+                .foregroundColor(warn ? .orange : .white)
+        }
+        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+        .frame(width: 150, alignment: .leading)
+    }
+}
+
 // MARK: - Analogue stick
 //
 // Steers when driving, walks when on foot. Absolute-position style: the knob
@@ -383,6 +443,26 @@ private struct MenuView: View {
                 Section("Jobs") {
                     ForEach(Campaign.missions) { m in
                         missionRow(m)
+                    }
+                }
+
+                Section("Diagnostics") {
+                    Toggle("Show diagnostics panel", isOn: $model.showDiagnostics)
+                    if let stage = model.lastFailedStage {
+                        Label("Last launch stopped at: \(stage.readable)",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    if model.safeMode {
+                        Text("Started on Balanced because the previous launch did not finish.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if model.autoDowngraded {
+                        Text("Quality was lowered automatically to stay inside the memory budget.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
                 }
 
