@@ -18,6 +18,7 @@ enum ShaderModifiers {
     static let wetRoad = """
     #pragma arguments
     float wetness;
+    float rain;
     #pragma body
     float2 wp = _surface.diffuseTexcoord * 6.0;
     // Two-scale value noise for puddle shapes.
@@ -31,12 +32,28 @@ enum ShaderModifiers {
     float n = mix(mix(a, b, f0.x), mix(c, d, f0.x), f0.y);
 
     float puddle = smoothstep(0.45, 0.85, n) * wetness;
+
+    // Rain ripples: concentric rings expanding out of a handful of impact
+    // points per tile, so standing water visibly reacts to the downpour.
+    float ripple = 0.0;
+    if (rain > 0.01) {
+        float2 rc = floor(wp * 2.0);
+        float2 rf = fract(wp * 2.0) - 0.5;
+        float seed = fract(sin(dot(rc, float2(41.7, 17.3))) * 9127.31);
+        // Each cell restarts its ring on its own offset beat.
+        float phase = fract(u_time * 1.6 + seed);
+        float r = length(rf);
+        ripple = sin((r - phase) * 34.0) * exp(-r * 6.0) * (1.0 - phase);
+        ripple *= rain * puddle;
+    }
     // Water darkens what it sits on and polishes it.
     _surface.diffuse.rgb *= mix(1.0, 0.45, puddle);
     _surface.roughness = mix(_surface.roughness, 0.04, puddle);
     _surface.metalness = mix(_surface.metalness, 0.25, puddle);
     // Flatten the normal where there is standing water.
     _surface.normal = normalize(mix(_surface.normal, float3(0.0, 0.0, 1.0), puddle * 0.85));
+    // Perturb the flattened water surface with the ripple rings.
+    _surface.normal = normalize(_surface.normal + float3(ripple * 0.35, ripple * 0.35, 0.0));
     """
 
     // MARK: Neon sign
@@ -110,6 +127,7 @@ enum ShaderModifiers {
     static func applyWetRoad(to m: SCNMaterial) {
         m.shaderModifiers = [.surface: wetRoad]
         m.setValue(NSNumber(value: 0.0), forKey: "wetness")
+        m.setValue(NSNumber(value: 0.0), forKey: "rain")
     }
 
     static func applyNeon(to m: SCNMaterial, seed: Float) {

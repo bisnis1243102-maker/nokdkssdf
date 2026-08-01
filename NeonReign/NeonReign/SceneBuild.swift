@@ -215,11 +215,69 @@ extension GameSceneView.Coordinator {
             buildings.append((bx, bz, Float(w) / 2, Float(d) / 2))
             emissiveFacades.append(m)
 
+            addRoofDetail(on: node, size: SIMD3<Float>(Float(w), Float(h), Float(d)),
+                          seed: seed)
+
             // A neon sign on roughly half the buildings, facing the street.
             if rnd(ci + i, ri, 37) > 0.5 {
                 addNeonSign(on: node, size: SIMD3<Float>(Float(w), Float(h), Float(d)),
                             color: district.neon, seed: seed)
             }
+        }
+    }
+
+    /// Parapets, plant housings and an aircraft warning light: rooflines are
+    /// most of what a skyline reads as, and flat-topped boxes read as untextured
+    /// blocks from the street.
+    private func addRoofDetail(on building: SCNNode, size: SIMD3<Float>, seed: Int) {
+        let top = size.y / 2
+
+        // Parapet wall around the roof edge.
+        let parapet = SCNBox(width: CGFloat(size.x) + 0.2, height: 0.7,
+                             length: CGFloat(size.z) + 0.2, chamferRadius: 0.05)
+        let pm = parapet.firstMaterial!
+        pm.lightingModel = .physicallyBased
+        pm.diffuse.contents = UIColor(white: 0.18, alpha: 1)
+        pm.roughness.contents = 0.85
+        let pn = SCNNode(geometry: parapet)
+        pn.position = SCNVector3(0, top + 0.35, 0)
+        building.addChildNode(pn)
+
+        // One or two plant boxes, offset so no two roofs match.
+        let units = 1 + Int(rnd(seed, 3, 83) * 2)
+        for u in 0..<units {
+            let bw = CGFloat(1.8 + rnd(seed + u, 5, 89) * 2.6)
+            let bh = CGFloat(1.0 + rnd(seed, u + 7, 97) * 1.6)
+            let unit = SCNBox(width: bw, height: bh, length: bw * 0.8, chamferRadius: 0.1)
+            let um = unit.firstMaterial!
+            um.lightingModel = .physicallyBased
+            um.diffuse.contents = UIColor(white: 0.26, alpha: 1)
+            um.metalness.contents = 0.6
+            um.roughness.contents = 0.55
+            let un = SCNNode(geometry: unit)
+            un.position = SCNVector3((rnd(seed + u, 11, 101) - 0.5) * size.x * 0.5,
+                                     top + Float(bh) / 2,
+                                     (rnd(seed, u + 13, 103) - 0.5) * size.z * 0.5)
+            building.addChildNode(un)
+        }
+
+        // Aircraft warning light on the taller towers, slowly pulsing.
+        if size.y > 40 {
+            let bulb = SCNSphere(radius: 0.32)
+            bulb.segmentCount = 8
+            let bm = bulb.firstMaterial!
+            bm.lightingModel = .constant
+            bm.diffuse.contents = UIColor.black
+            bm.emission.contents = UIColor(red: 1.0, green: 0.15, blue: 0.15, alpha: 1)
+            bm.emission.intensity = 3.0
+            let bn = SCNNode(geometry: bulb)
+            bn.position = SCNVector3(0, top + 1.2, 0)
+            bn.castsShadow = false
+            bn.runAction(.repeatForever(.sequence([
+                .fadeOpacity(to: 0.15, duration: 1.1),
+                .fadeOpacity(to: 1.0, duration: 1.1),
+            ])))
+            building.addChildNode(bn)
         }
     }
 

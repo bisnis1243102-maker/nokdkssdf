@@ -41,10 +41,27 @@ extension GameSceneView.Coordinator {
 
     /// Returns the car root plus its four wheel nodes and the two steerable
     /// front pivots.
-    func makeCar(paint: UIColor, police: Bool, seed: Int)
-        -> (root: SCNNode, wheels: [SCNNode], steer: [SCNNode], lights: [SCNNode]) {
+    func makeCar(paint: UIColor, police: Bool, seed: Int, beams: Bool = false)
+        -> (root: SCNNode, wheels: [SCNNode], steer: [SCNNode],
+            lights: [SCNNode], brakes: [SCNMaterial]) {
 
         let root = SCNNode()
+
+        // Contact shadow: a soft dark ellipse that sits the car in the world
+        // even when the sun is low and the cast shadow stretches away.
+        let blob = SCNPlane(width: 2.6, height: 5.2)
+        let blobMat = blob.firstMaterial!
+        blobMat.lightingModel = .constant
+        blobMat.diffuse.contents = TextureFactory.contactShadow(size: 64)
+        blobMat.blendMode = .multiply
+        blobMat.writesToDepthBuffer = false
+        blobMat.readsFromDepthBuffer = true
+        let blobNode = SCNNode(geometry: blob)
+        blobNode.eulerAngles.x = -.pi / 2
+        blobNode.position = SCNVector3(0, -0.36, 0)
+        blobNode.castsShadow = false
+        blobNode.renderingOrder = -5
+        root.addChildNode(blobNode)
 
         // Lower body.
         let body = SCNBox(width: 2.0, height: 0.62, length: 4.4, chamferRadius: 0.28)
@@ -116,6 +133,7 @@ extension GameSceneView.Coordinator {
 
         // Headlights + tail lights.
         var lightNodes: [SCNNode] = []
+        var brakes: [SCNMaterial] = []
         for side in [Float(-0.62), Float(0.62)] {
             let lens = SCNBox(width: 0.42, height: 0.18, length: 0.10, chamferRadius: 0.04)
             let lm = lens.firstMaterial!
@@ -152,6 +170,30 @@ extension GameSceneView.Coordinator {
             let tn = SCNNode(geometry: tail)
             tn.position = SCNVector3(side, 0.62, -2.22)
             root.addChildNode(tn)
+            brakes.append(tm)
+
+            if beams {
+                // A translucent cone standing in for the light shaft the beam
+                // carves out of the night air. Additive, depth-read only, so it
+                // never occludes what it is lighting.
+                let cone = SCNCone(topRadius: 0.18, bottomRadius: 2.6, height: 13)
+                let cmat = cone.firstMaterial!
+                cmat.lightingModel = .constant
+                cmat.diffuse.contents = UIColor(red: 1.0, green: 0.95, blue: 0.82, alpha: 1)
+                cmat.blendMode = .add
+                cmat.writesToDepthBuffer = false
+                cmat.readsFromDepthBuffer = true
+                cmat.isDoubleSided = true
+                let cn = SCNNode(geometry: cone)
+                // Lay the cone down the car's forward axis.
+                cn.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+                cn.position = SCNVector3(side, 0.62, 8.6)
+                cn.castsShadow = false
+                cn.opacity = 0
+                cn.renderingOrder = 20
+                root.addChildNode(cn)
+                headlightCones.append(cn)
+            }
         }
 
         if police {
@@ -171,14 +213,14 @@ extension GameSceneView.Coordinator {
             }
         }
 
-        return (root, wheels, steer, lightNodes)
+        return (root, wheels, steer, lightNodes, brakes)
     }
 
     // MARK: Player car
 
     func buildPlayerCar() {
         let built = makeCar(paint: UIColor(red: 0.58, green: 0.10, blue: 0.14, alpha: 1),
-                            police: false, seed: 1)
+                            police: false, seed: 1, beams: true)
         // Re-parent the built geometry under the persistent player node.
         for child in built.root.childNodes {
             child.removeFromParentNode()
@@ -187,6 +229,7 @@ extension GameSceneView.Coordinator {
         wheelNodes = built.wheels
         steerPivots = built.steer
         headlightNodes = built.lights
+        brakeMaterials = built.brakes
         carNode.position = SCNVector3(0, 0.42, 0)
         scene.rootNode.addChildNode(carNode)
 
@@ -286,6 +329,13 @@ extension GameSceneView.Coordinator {
 
         if let ex = exhaustNode?.particleSystems?.first {
             ex.birthRate = m.throttle > 0.2 ? 90 : 12
+        }
+
+        // Tail lights flare when braking — the clearest read the player has
+        // that the brake actually bit.
+        let braking = m.throttle < -0.1 || m.handbrake
+        for bm in brakeMaterials {
+            bm.emission.intensity = braking ? 4.5 : 1.0
         }
     }
 
@@ -425,7 +475,8 @@ extension GameSceneView.Coordinator {
                    CityWorld.clamp(pz + cosf(angle) * dist))
         let snapped = CityWorld.snapToRoad(x: raw.0, z: raw.1)
 
-        let built = makeCar(paint: UIColor(white: 0.92, alpha: 1), police: true, seed: cops.count)
+        let built = makeCar(paint: UIColor(white: 0.92, alpha: 1), police: true,
+                            seed: cops.count, beams: true)
         built.root.position = SCNVector3(snapped.0, 0.42, snapped.1)
         scene.rootNode.addChildNode(built.root)
 
@@ -509,7 +560,7 @@ extension GameSceneView.Coordinator {
         let snapped = CityWorld.snapToRoad(x: p.x + 24, z: p.y + 24)
 
         let built = makeCar(paint: UIColor(red: 0.92, green: 0.72, blue: 0.10, alpha: 1),
-                            police: false, seed: 99)
+                            police: false, seed: 99, beams: true)
         built.root.position = SCNVector3(snapped.0, 0.42, snapped.1)
         scene.rootNode.addChildNode(built.root)
 

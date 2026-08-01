@@ -112,14 +112,41 @@ enum Sky {
                 }
             }
 
-            // A soft sun/moon disc near the horizon band.
+            // A soft sun/moon disc near the horizon band, with a glow halo so
+            // it reads as a light source rather than a sticker.
             let discY = s * (0.58 - CGFloat(state.sunElevation) * 0.34)
             let discColor = state.isNight
                 ? UIColor(white: 0.92, alpha: 0.85)
                 : state.sunColor.withAlphaComponent(0.95)
+
+            let glowCentre = CGPoint(x: s * 0.485, y: discY)
+            if let glow = CGGradient(colorsSpace: cs,
+                                     colors: [discColor.withAlphaComponent(0.55).cgColor,
+                                              discColor.withAlphaComponent(0.0).cgColor] as CFArray,
+                                     locations: [0, 1]) {
+                ctx.drawRadialGradient(glow, startCenter: glowCentre, startRadius: 0,
+                                       endCenter: glowCentre, endRadius: s * 0.20,
+                                       options: [])
+            }
             ctx.setFillColor(discColor.cgColor)
             ctx.fillEllipse(in: CGRect(x: s * 0.46, y: discY - s * 0.02,
                                        width: s * 0.05, height: s * 0.05))
+
+            // Cloud band across the upper sky. Lit warm near the sun at dusk,
+            // and it is what the wet road ends up reflecting on overcast days.
+            let cloudLight = CGFloat(state.daylight)
+            for i in 0..<26 {
+                let cx = TextureFactory.fbm(CGFloat(i) * 2.3, 0.7, 131) * s * 1.1 - s * 0.05
+                let cy = TextureFactory.fbm(0.4, CGFloat(i) * 1.9, 137) * s * 0.42
+                let cw = s * (0.18 + TextureFactory.fbm(CGFloat(i), 3.3, 141) * 0.26)
+                let ch = cw * 0.24
+                // Warmer and brighter the closer a puff sits to the sun.
+                let nearSun = 1 - min(1, abs(cx - s * 0.485) / (s * 0.5))
+                let tint = 0.30 + cloudLight * 0.42 + CGFloat(state.duskFactor) * nearSun * 0.30
+                ctx.setFillColor(UIColor(red: tint * 1.06, green: tint,
+                                         blue: tint * 1.08, alpha: 0.34).cgColor)
+                ctx.fillEllipse(in: CGRect(x: cx, y: cy, width: cw, height: ch))
+            }
         }
     }
 }

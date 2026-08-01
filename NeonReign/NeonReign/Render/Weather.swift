@@ -50,6 +50,14 @@ final class WeatherSystem {
     private(set) var condition: Condition = .clear
     /// Eases toward the condition's target so transitions aren't a hard cut.
     private(set) var wetness: Float = 0.05
+    /// 0...1 amount of rain actually falling — drives the droplets on the lens.
+    var rainAmount: Float {
+        switch condition {
+        case .clear, .overcast: return 0
+        case .drizzle:          return 0.55
+        case .storm:            return 1.0
+        }
+    }
 
     private var timer: Float = 0
     private var rainNode: SCNNode?
@@ -135,8 +143,10 @@ final class WeatherSystem {
         let rate: Float = target > wetness ? 0.28 : 0.05
         wetness += (target - wetness) * min(1, rate * dt * 6)
 
+        let rain = rainAmount
         for m in wetMaterials {
             m.setValue(NSNumber(value: wetness), forKey: "wetness")
+            m.setValue(NSNumber(value: rain), forKey: "rain")
         }
 
         if let r = rainNode?.particleSystems?.first {

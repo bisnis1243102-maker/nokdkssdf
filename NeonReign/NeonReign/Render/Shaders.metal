@@ -51,6 +51,11 @@ static inline float nr_luma(float3 c)
     return dot(c, float3(0.2126, 0.7152, 0.0722));
 }
 
+static inline float nr_hash_uv(float2 p)
+{
+    return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
+}
+
 // Hardware depth is heavily non-linear; this is enough to compare relative
 // depths inside a screen-space march without needing the projection matrix.
 static inline float nr_linear_depth(float d)
@@ -123,10 +128,11 @@ fragment half4 nr_blur_fragment(QuadOut v [[stage_in]],
 fragment half4 nr_ssr_fragment(QuadOut v [[stage_in]],
                                texture2d<float, access::sample> colorSampler [[texture(0)]],
                                texture2d<float, access::sample> depthSampler [[texture(1)]],
-                               constant float &uWetness [[buffer(0)]])
+                               constant float &uWetness [[buffer(0)]],
+                               constant float &uTime [[buffer(1)]])
 {
     // Ground occupies roughly the bottom of the frame with a chase camera.
-    float groundMask = smoothstep(0.52, 0.78, v.uv.y);
+    float groundMask = smoothstep(0.50, 0.76, v.uv.y);
     if (groundMask <= 0.001 || uWetness <= 0.001) {
         return half4(0.0h);
     }
@@ -134,26 +140,37 @@ fragment half4 nr_ssr_fragment(QuadOut v [[stage_in]],
     float d = nr_linear_depth(depthSampler.sample(nr_sampler, v.uv).r);
 
     // Mirror upwards from the horizon: sample what is above this pixel,
-    // stepping further the closer the pixel is to the camera.
+    // stepping further the closer the pixel is to the camera. A per-pixel
+    // jitter breaks up the banding a fixed step leaves across wet tarmac.
+    float jitter = nr_hash_uv(v.uv * 512.0 + uTime) - 0.5;
+
     float3 hit = float3(0.0);
     float found = 0.0;
-    float stepSize = mix(0.006, 0.030, saturate(d * 4.0));
+    float stepSize = mix(0.005, 0.026, saturate(d * 4.0));
 
-    for (int i = 1; i <= 12; ++i) {
-        float2 uv = float2(v.uv.x, v.uv.y - stepSize * float(i));
+    for (int i = 1; i <= 20; ++i) {
+        float march = stepSize * (float(i) + jitter * 0.6);
+        // Water is never a perfect mirror: spread the ray sideways as it
+        // travels so distant reflections blur out instead of staying sharp.
+        float spread = march * 0.09;
+        float2 uv = float2(v.uv.x + jitter * spread, v.uv.y - march);
         if (uv.y < 0.0) { break; }
         float sd = nr_linear_depth(depthSampler.sample(nr_sampler, uv).r);
         float3 sc = colorSampler.sample(nr_sampler, uv).rgb;
         // Accept the sample when it is geometry in front of the road plane,
         // or when it is bright enough to be a light source worth reflecting.
-        if (sd < d - 0.0005 || nr_luma(sc) > 0.55) {
+        if (sd < d - 0.0005 || nr_luma(sc) > 0.50) {
             hit = sc;
-            found = 1.0 - float(i) / 13.0;   // fade with march distance
+            found = 1.0 - float(i) / 21.0;   // fade with march distance
             break;
         }
     }
 
-    float3 refl = hit * found * groundMask * uWetness;
+    // Fresnel: grazing angles near the horizon reflect far more than the
+    // tarmac directly beneath the camera.
+    float fresnel = mix(0.35, 1.0, 1.0 - smoothstep(0.55, 1.0, v.uv.y));
+
+    float3 refl = hit * found * groundMask * uWetness * fresnel;
     // Reflections are dimmer and slightly cooler than the source.
     refl *= float3(0.78, 0.84, 1.0);
     return half4(half3(refl), 1.0h);
@@ -203,23 +220,34 @@ static inline float3 nr_aces(float3 x)
     return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
 }
 
-static inline float nr_hash(float2 p)
-{
-    return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
-}
-
 fragment half4 nr_composite_fragment(QuadOut v [[stage_in]],
                                      texture2d<float, access::sample> colorSampler [[texture(0)]],
                                      texture2d<float, access::sample> bloomSampler [[texture(1)]],
                                      texture2d<float, access::sample> reflectSampler [[texture(2)]],
                                      texture2d<float, access::sample> raySampler [[texture(3)]],
+                                     texture2d<float, access::sample> wideSampler [[texture(4)]],
                                      constant float &uBloom [[buffer(0)]],
                                      constant float &uExposure [[buffer(1)]],
                                      constant float &uGrain [[buffer(2)]],
                                      constant float &uTime [[buffer(3)]],
-                                     constant float &uAberration [[buffer(4)]])
+                                     constant float &uAberration [[buffer(4)]],
+                                     constant float &uRainOnLens [[buffer(5)]])
 {
     float2 uv = v.uv;
+
+    // Rain on the lens: a few wobbling droplets that refract what is behind
+    // them. Only present in real weather, and it drifts down the glass.
+    if (uRainOnLens > 0.01) {
+        float2 dropGrid = uv * float2(9.0, 6.0);
+        dropGrid.y += uTime * 0.10;
+        float2 cell = floor(dropGrid);
+        float2 inCell = fract(dropGrid) - 0.5;
+        float present = step(0.82, nr_hash_uv(cell));
+        float dist = length(inCell * float2(1.0, 1.4));
+        float drop = present * smoothstep(0.34, 0.05, dist);
+        uv += inCell * drop * 0.045 * uRainOnLens;
+    }
+
     float2 fromCentre = uv - 0.5;
     float r2 = dot(fromCentre, fromCentre);
 
@@ -230,19 +258,30 @@ fragment half4 nr_composite_fragment(QuadOut v [[stage_in]],
     scene.g = colorSampler.sample(nr_sampler, uv).g;
     scene.b = colorSampler.sample(nr_sampler, uv - fromCentre * ca).b;
 
+    // Two bloom tiers: a tight halo around lights plus a wide, soft haze that
+    // spreads the city's glow across the frame.
     float3 bloom = bloomSampler.sample(nr_sampler, uv).rgb;
+    float3 wide  = wideSampler.sample(nr_sampler, uv).rgb;
     float3 refl  = reflectSampler.sample(nr_sampler, uv).rgb;
     float3 rays  = raySampler.sample(nr_sampler, uv).rgb;
 
     float3 c = scene + refl;
     c += bloom * uBloom;
+    c += wide * uBloom * 0.65;
     c += rays;
 
     c *= uExposure;
     c = nr_aces(c);
 
+    // Split toning: push the shadows cold and the highlights warm. This is
+    // most of what gives the night-time grade its look.
+    float l = nr_luma(c);
+    float3 shadowTint = float3(0.80, 0.92, 1.12);
+    float3 highTint   = float3(1.08, 1.00, 0.90);
+    c *= mix(shadowTint, highTint, smoothstep(0.15, 0.75, l));
+
     // Grain, animated so it does not look like a static overlay.
-    float g = nr_hash(uv * float2(1024.0, 768.0) + uTime) - 0.5;
+    float g = nr_hash_uv(uv * float2(1024.0, 768.0) + uTime) - 0.5;
     c += g * uGrain;
 
     // Vignette.

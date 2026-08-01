@@ -90,6 +90,10 @@ struct GameSceneView: UIViewRepresentable {
         /// True while the player is on foot and close enough to get back in.
         var nearCar = false
         var exhaustNode: SCNNode?
+        /// Volumetric-looking headlight beams, shown only at night.
+        var headlightCones: [SCNNode] = []
+        /// Emissive tail-light materials, brightened under braking.
+        var brakeMaterials: [SCNMaterial] = []
         /// Seconds the police have had the player boxed in and stationary.
         var bustedTimer: Float = 0
 
@@ -175,12 +179,17 @@ struct GameSceneView: UIViewRepresentable {
             sun.castsShadow = true
             sun.shadowMode = .deferred
             sun.shadowSampleCount = model.quality == .balanced ? 4 : 16
-            sun.shadowRadius = 4
+            sun.shadowRadius = model.quality == .balanced ? 3 : 6
             sun.shadowMapSize = CGSize(width: model.quality.shadowMapSize,
                                        height: model.quality.shadowMapSize)
             sun.shadowColor = UIColor(white: 0, alpha: 0.62)
-            sun.orthographicScale = 70
-            sun.zFar = 500
+            // Cascades concentrate resolution near the car, so contact shadows
+            // under the wheels stay crisp while the block behind still casts.
+            sun.shadowCascadeCount = model.quality.shadowCascades
+            sun.shadowCascadeSplittingFactor = 0.35
+            sun.shadowBias = 0.004
+            sun.orthographicScale = 60
+            sun.zFar = 460
             sunNode.light = sun
             scene.rootNode.addChildNode(sunNode)
 
@@ -250,6 +259,11 @@ struct GameSceneView: UIViewRepresentable {
             for h in headlightNodes {
                 h.light?.intensity = CGFloat(night) * 1400
             }
+            // The visible beam cones only make sense after dark.
+            for c in headlightCones {
+                c.isHidden = night < 0.35
+                c.opacity = CGFloat(night) * 0.09
+            }
         }
 
         // MARK: - Per-frame
@@ -287,6 +301,7 @@ struct GameSceneView: UIViewRepresentable {
 
             pipeline?.update(sky: sky,
                              wetness: weather.wetness,
+                             rain: weather.rainAmount,
                              viewSize: view?.bounds.size ?? CGSize(width: 1, height: 1),
                              time: totalTime)
 
@@ -323,6 +338,8 @@ struct GameSceneView: UIViewRepresentable {
             let ph = mode == .driving ? carHeading : footHeading
 
             weatherAnchor.position = SCNVector3(px, 0, pz)
+            // Keep the directional light's frustum centred on the player.
+            sunNode.position = SCNVector3(px, 120, pz)
 
             let fx = sinf(ph), fz = cosf(ph)
             // Pull the camera back and lower it as speed rises.

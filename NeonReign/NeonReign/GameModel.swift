@@ -39,7 +39,17 @@ enum GraphicsQuality: Int, CaseIterable, Identifiable {
         switch self {
         case .balanced: return 256
         case .high:     return 512
-        case .ultra:    return 512
+        case .ultra:    return 1024
+        }
+    }
+
+    /// Cascades for the sun's shadow map. More cascades keep contact shadows
+    /// sharp near the car without blurring the ones across the block.
+    var shadowCascades: Int {
+        switch self {
+        case .balanced: return 1
+        case .high:     return 2
+        case .ultra:    return 3
         }
     }
     /// How many street/neon lights may be live around the player at once.

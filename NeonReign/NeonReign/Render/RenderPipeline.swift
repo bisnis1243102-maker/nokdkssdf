@@ -56,9 +56,32 @@ final class RenderPipeline {
                        "uDirX": "$uBlurVX", "uDirY": "$uBlurVY"],
             "outputs": ["color": "nrBlurB"],
         ]
-        sequence += ["nrBrightPass", "nrBlurHPass", "nrBlurVPass"]
+        // Second, wider tier: blur the already-blurred buffer again at quarter
+        // resolution for the broad haze that spreads a city's glow.
+        targets["nrWideA"] = ["type": "color", "scaleFactor": 0.25]
+        targets["nrWideB"] = ["type": "color", "scaleFactor": 0.25]
+        passes["nrWideHPass"] = [
+            "draw": "DRAW_QUAD",
+            "metalVertexShader": "nr_quad_vertex",
+            "metalFragmentShader": "nr_blur_fragment",
+            "inputs": ["colorSampler": "nrBlurB",
+                       "uDirX": "$uWideHX", "uDirY": "$uWideHY"],
+            "outputs": ["color": "nrWideA"],
+        ]
+        passes["nrWideVPass"] = [
+            "draw": "DRAW_QUAD",
+            "metalVertexShader": "nr_quad_vertex",
+            "metalFragmentShader": "nr_blur_fragment",
+            "inputs": ["colorSampler": "nrWideA",
+                       "uDirX": "$uWideVX", "uDirY": "$uWideVY"],
+            "outputs": ["color": "nrWideB"],
+        ]
+
+        sequence += ["nrBrightPass", "nrBlurHPass", "nrBlurVPass",
+                     "nrWideHPass", "nrWideVPass"]
         float("uThreshold")
         float("uBlurHX"); float("uBlurHY"); float("uBlurVX"); float("uBlurVY")
+        float("uWideHX"); float("uWideHY"); float("uWideVX"); float("uWideVY")
         // The bright pass reads its threshold as a symbol too.
         passes["nrBrightPass"] = mergeInputs(passes["nrBrightPass"], ["uThreshold": "$uThreshold"])
 
@@ -71,7 +94,8 @@ final class RenderPipeline {
                 "metalFragmentShader": "nr_ssr_fragment",
                 "inputs": ["colorSampler": "COLOR",
                            "depthSampler": "DEPTH",
-                           "uWetness": "$uWetness"],
+                           "uWetness": "$uWetness",
+                           "uTime": "$uTime"],
                 "outputs": ["color": "nrReflect"],
             ]
             sequence.append("nrSSRPass")
@@ -126,16 +150,18 @@ final class RenderPipeline {
                        "bloomSampler": "nrBlurB",
                        "reflectSampler": reflectSource,
                        "raySampler": raySource,
+                       "wideSampler": "nrWideB",
                        "uBloom": "$uBloom",
                        "uExposure": "$uExposure",
                        "uGrain": "$uGrain",
                        "uTime": "$uTime",
-                       "uAberration": "$uAberration"],
+                       "uAberration": "$uAberration",
+                       "uRainOnLens": "$uRainOnLens"],
             "outputs": ["color": compositeOutput],
         ]
         sequence.append("nrCompositePass")
         float("uBloom"); float("uExposure"); float("uGrain")
-        float("uTime"); float("uAberration")
+        float("uTime"); float("uAberration"); float("uRainOnLens")
 
         // --- FXAA (ultra only) ---------------------------------------------
         if quality.wantsTAA {
@@ -164,6 +190,8 @@ final class RenderPipeline {
         t.setValue(NSNumber(value: 0.62), forKey: "uThreshold")
         t.setValue(NSNumber(value: 0.0), forKey: "uBlurHY")
         t.setValue(NSNumber(value: 0.0), forKey: "uBlurVX")
+        t.setValue(NSNumber(value: 0.0), forKey: "uWideHY")
+        t.setValue(NSNumber(value: 0.0), forKey: "uWideVX")
         return t
     }
 
@@ -183,7 +211,8 @@ final class RenderPipeline {
     ///   - sky: drives exposure, the sun's screen position and shaft strength.
     ///   - wetness: 0...1 from the weather system; scales the road reflections.
     ///   - viewSize: used to convert blur and FXAA offsets into texel units.
-    func update(sky: SkyState, wetness: Float, viewSize: CGSize, time: Double) {
+    func update(sky: SkyState, wetness: Float, rain: Float,
+                viewSize: CGSize, time: Double) {
         guard let t = technique, viewSize.width > 0, viewSize.height > 0 else { return }
 
         let texelX = Float(1 / viewSize.width)
@@ -192,6 +221,10 @@ final class RenderPipeline {
         // Blur runs at half resolution, so the step is two texels wide.
         t.setValue(NSNumber(value: texelX * 2), forKey: "uBlurHX")
         t.setValue(NSNumber(value: texelY * 2), forKey: "uBlurVY")
+        // The wide tier runs at quarter res, so each tap reaches four texels.
+        t.setValue(NSNumber(value: texelX * 8), forKey: "uWideHX")
+        t.setValue(NSNumber(value: texelY * 8), forKey: "uWideVY")
+        t.setValue(NSNumber(value: rain), forKey: "uRainOnLens")
 
         // Night wants a lower bloom threshold and more of it: neon is the point.
         let night = 1 - sky.daylight

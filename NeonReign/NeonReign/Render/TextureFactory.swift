@@ -369,6 +369,29 @@ enum TextureFactory {
         return MapSet(albedo: albedo, normal: normal, roughness: rough, ao: ao)
     }
 
+    // MARK: Contact shadow
+
+    /// A soft radial darkening used as a multiply blob under vehicles, so they
+    /// sit on the road even when the sun's cast shadow is stretched away.
+    static func contactShadow(size: Int = 64) -> UIImage {
+        cached("contact-\(size)") {
+            image(size) { ctx, s in
+                ctx.setFillColor(UIColor.white.cgColor)
+                ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
+                let cs = CGColorSpaceCreateDeviceRGB()
+                let centre = CGPoint(x: s / 2, y: s / 2)
+                if let g = CGGradient(colorsSpace: cs,
+                                      colors: [UIColor(white: 0.30, alpha: 1).cgColor,
+                                               UIColor.white.cgColor] as CFArray,
+                                      locations: [0, 1]) {
+                    ctx.drawRadialGradient(g, startCenter: centre, startRadius: 0,
+                                           endCenter: centre, endRadius: s * 0.5,
+                                           options: [])
+                }
+            }
+        }
+    }
+
     // MARK: Applying a map set
 
     /// Wires a map set onto a material as physically based, with tiling.
@@ -383,6 +406,11 @@ enum TextureFactory {
             p.wrapS = .repeat
             p.wrapT = .repeat
             p.mipFilter = .linear
+            p.minificationFilter = .linear
+            p.magnificationFilter = .linear
+            // Anisotropy is the single biggest win on road surfaces: without
+            // it the tarmac turns to mush a few metres ahead of the car.
+            p.maxAnisotropy = 16
             p.contentsTransform = SCNMatrix4MakeScale(Float(repeatX), Float(repeatY), 1)
         }
     }
