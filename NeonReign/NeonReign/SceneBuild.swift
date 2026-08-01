@@ -115,6 +115,54 @@ extension GameSceneView.Coordinator {
         scene.rootNode.addChildNode(poleNode)
     }
 
+    /// Zebra crossings at every junction. Bare tarmac crossroads are one of the
+    /// clearest tells that a city is untextured geometry rather than a place.
+    func addCrosswalks() {
+        let stripe = TextureFactory.crosswalk(size: 128)
+        let mat = SCNMaterial()
+        mat.lightingModel = .physicallyBased
+        mat.diffuse.contents = stripe
+        mat.roughness.contents = 0.6
+        mat.transparent.contents = stripe
+        mat.transparencyMode = .aOne
+        mat.writesToDepthBuffer = false
+        mat.diffuse.wrapS = .repeat
+        mat.diffuse.wrapT = .repeat
+
+        let bandLength = CGFloat(CityWorld.roadHalfWidth * 2)
+        let bandWidth: CGFloat = 3.2
+
+        for ax in CityWorld.avenues {
+            for az in CityWorld.avenues {
+                // One band on each approach, set back from the junction centre.
+                for (dx, dz) in [(Float(0), CityWorld.roadHalfWidth + 2),
+                                 (Float(0), -CityWorld.roadHalfWidth - 2)] {
+                    let plane = SCNPlane(width: bandLength, height: bandWidth)
+                    plane.firstMaterial = mat
+                    let n = SCNNode(geometry: plane)
+                    n.eulerAngles.x = -.pi / 2
+                    n.position = SCNVector3(ax + dx, 0.03, az + dz)
+                    n.castsShadow = false
+                    n.renderingOrder = 1
+                    scene.rootNode.addChildNode(n)
+                }
+                for (dx, dz) in [(CityWorld.roadHalfWidth + 2, Float(0)),
+                                 (-CityWorld.roadHalfWidth - 2, Float(0))] {
+                    // Same geometry, turned a quarter turn, so the stripes run
+                    // across the carriageway rather than being stretched along it.
+                    let plane = SCNPlane(width: bandLength, height: bandWidth)
+                    plane.firstMaterial = mat
+                    let n = SCNNode(geometry: plane)
+                    n.eulerAngles = SCNVector3(-Float.pi / 2, Float.pi / 2, 0)
+                    n.position = SCNVector3(ax + dx, 0.03, az + dz)
+                    n.castsShadow = false
+                    n.renderingOrder = 1
+                    scene.rootNode.addChildNode(n)
+                }
+            }
+        }
+    }
+
     // MARK: City blocks
 
     func buildCity() {
@@ -234,8 +282,44 @@ extension GameSceneView.Coordinator {
 
             buildings.append((bx, bz, Float(w) / 2, Float(d) / 2))
 
-            addRoofDetail(on: node, size: SIMD3<Float>(Float(w), Float(h), Float(d)),
-                          seed: seed)
+            // Setbacks. A block of identical extruded rectangles reads as a
+            // row of boxes; stepping the upper storeys in is what makes a
+            // skyline look like architecture. The topmost tier carries the roof
+            // detail so the parapet doesn't end up buried inside the next tier.
+            var topNode = node
+            var topSize = SIMD3<Float>(Float(w), Float(h), Float(d))
+            var stackTop = Float(h) + 0.16
+            var tierW = Float(w), tierD = Float(d)
+
+            if district.height >= 1 {
+                let tiers = district.height == 2 ? 2 : 1
+                for t in 0..<tiers {
+                    guard rnd(ci + t, ri + i, 59) > 0.3 else { break }
+                    tierW *= 0.70
+                    tierD *= 0.70
+                    let th = 5 + rnd(ci, ri + t + i, 61) * (district.height == 2 ? 16 : 8)
+
+                    let tier = SCNBox(width: CGFloat(tierW), height: CGFloat(th),
+                                      length: CGFloat(tierD), chamferRadius: 0.2)
+                    tier.firstMaterial = m
+                    let tn = SCNNode(geometry: tier)
+                    tn.position = SCNVector3(bx, stackTop + th / 2, bz)
+                    tn.castsShadow = true
+                    scene.rootNode.addChildNode(tn)
+
+                    stackTop += th
+                    topNode = tn
+                    topSize = SIMD3<Float>(tierW, th, tierD)
+                }
+            }
+
+            addRoofDetail(on: topNode, size: topSize, seed: seed)
+
+            // Ground-floor shopfronts. Street level is where the eye actually
+            // is, and a lit band of glass at the base does more for a city
+            // reading as inhabited than anything happening 40 metres up.
+            addShopfront(x: bx, z: bz, width: Float(w), depth: Float(d),
+                         district: district, seed: seed)
 
             // A neon sign on roughly half the buildings, facing the street.
             if rnd(ci + i, ri, 37) > 0.5 {
@@ -243,6 +327,34 @@ extension GameSceneView.Coordinator {
                             color: district.neon, seed: seed)
             }
         }
+    }
+
+    /// A glazed, warmly-lit band wrapped around the base of a building.
+    private func addShopfront(x: Float, z: Float, width: Float, depth: Float,
+                              district: District, seed: Int) {
+        let key = "shop-\(district.name)"
+        let mat: SCNMaterial
+        if let shared = facadeMaterials[key] {
+            mat = shared
+        } else {
+            let made = SCNMaterial()
+            made.lightingModel = .physicallyBased
+            made.diffuse.contents = UIColor(red: 0.10, green: 0.11, blue: 0.14, alpha: 1)
+            made.roughness.contents = 0.12
+            made.metalness.contents = 0.35
+            made.emission.contents = district.neon
+            made.emission.intensity = 0.28
+            facadeMaterials[key] = made
+            mat = made
+        }
+
+        let band = SCNBox(width: CGFloat(width) + 0.35, height: 3.4,
+                          length: CGFloat(depth) + 0.35, chamferRadius: 0.12)
+        band.firstMaterial = mat
+        let node = SCNNode(geometry: band)
+        node.position = SCNVector3(x, 1.9, z)
+        node.castsShadow = false
+        scene.rootNode.addChildNode(node)
     }
 
     /// Parapets, plant housings and an aircraft warning light: rooflines are
@@ -377,6 +489,35 @@ extension GameSceneView.Coordinator {
         let cn = SCNNode(geometry: canopy)
         cn.position = SCNVector3(x, 3.4, z)
         scene.rootNode.addChildNode(cn)
+    }
+
+    /// Cars parked along the kerbs. Empty streets are the other big tell that a
+    /// city is a diagram; a handful of stationary vehicles fixes it cheaply.
+    func addParkedCars() {
+        let palette: [UIColor] = [
+            UIColor(red: 0.72, green: 0.72, blue: 0.75, alpha: 1),
+            UIColor(red: 0.12, green: 0.13, blue: 0.16, alpha: 1),
+            UIColor(red: 0.16, green: 0.30, blue: 0.52, alpha: 1),
+            UIColor(red: 0.55, green: 0.18, blue: 0.20, alpha: 1),
+            UIColor(red: 0.30, green: 0.42, blue: 0.34, alpha: 1),
+        ]
+
+        for i in 0..<22 {
+            let avenue = CityWorld.avenues[(i * 3) % CityWorld.avenues.count]
+            let along = (rnd(i, 29, 97) - 0.5) * CityWorld.half * 1.8
+            let vertical = i % 2 == 0
+            // Just inside the kerb, nose-to-tail with the road direction.
+            let offset = CityWorld.roadHalfWidth * 0.78 * (i % 4 < 2 ? 1 : -1)
+
+            let x = vertical ? avenue + offset : along
+            let z = vertical ? along : avenue + offset
+            guard abs(x) < CityWorld.half - 6, abs(z) < CityWorld.half - 6 else { continue }
+
+            let car = makeCar(paint: palette[i % palette.count], police: false, seed: 300 + i)
+            car.root.position = SCNVector3(x, 0.42, z)
+            car.root.eulerAngles.y = vertical ? 0 : .pi / 2
+            scene.rootNode.addChildNode(car.root)
+        }
     }
 
     // MARK: Landmarks

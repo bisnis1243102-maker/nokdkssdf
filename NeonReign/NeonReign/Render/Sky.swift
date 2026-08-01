@@ -7,11 +7,13 @@ import SceneKit
 struct SkyState {
     /// Hours, 0...24.
     ///
-    /// Starts at midday deliberately. The first build to reach a phone rendered
-    /// black, and a night start makes "broken" and "correctly very dark" look
-    /// identical — daylight makes a working frame unmistakable. The full 24h
-    /// cycle still runs from here.
-    var hour: Double = 13.0
+    /// Starts in the late afternoon. Two reasons: a night start makes "broken"
+    /// and "correctly very dark" look identical, and flat midday light is the
+    /// least flattering hour there is — the sun directly overhead gives every
+    /// building the same grey face and no shadow to read shape from. A low sun
+    /// throws long shadows down the streets and warms the whole palette. The
+    /// full 24h cycle still runs from here.
+    var hour: Double = 16.6
 
     /// Sun elevation in radians. Negative means below the horizon.
     var sunElevation: Float {

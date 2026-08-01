@@ -417,6 +417,24 @@ enum TextureFactory {
         return MapSet(albedo: albedo, normal: normal, roughness: rough, ao: ao)
     }
 
+    // MARK: Road markings
+
+    /// Zebra stripes on transparent background, running along the tile's X axis.
+    static func crosswalk(size: Int = 128) -> UIImage {
+        cached("crosswalk-\(size)") {
+            image(size) { ctx, s in
+                ctx.clear(CGRect(x: 0, y: 0, width: s, height: s))
+                ctx.setFillColor(UIColor(white: 0.92, alpha: 0.9).cgColor)
+                let bars = 7
+                let pitch = s / CGFloat(bars)
+                for i in 0..<bars {
+                    ctx.fill(CGRect(x: CGFloat(i) * pitch + pitch * 0.22, y: 0,
+                                    width: pitch * 0.56, height: s))
+                }
+            }
+        }
+    }
+
     // MARK: Contact shadow
 
     /// A soft radial darkening used as a multiply blob under vehicles, so they

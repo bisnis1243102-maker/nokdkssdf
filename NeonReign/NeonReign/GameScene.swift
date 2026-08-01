@@ -231,10 +231,12 @@ struct GameSceneView: UIViewRepresentable {
             let scene = SCNScene()
             self.scene = scene
 
-            scene.fogColor = UIColor(red: 0.10, green: 0.12, blue: 0.18, alpha: 1)
-            scene.fogStartDistance = 120
-            scene.fogEndDistance = 700
-            scene.fogDensityExponent = 1.6
+            // Aerial perspective: haze starting much closer gives the skyline
+            // depth instead of every tower reading at the same distance.
+            scene.fogColor = UIColor(red: 0.62, green: 0.70, blue: 0.82, alpha: 1)
+            scene.fogStartDistance = 70
+            scene.fogEndDistance = 520
+            scene.fogDensityExponent = 1.4
 
             // Camera
             let cam = SCNCamera()
@@ -275,7 +277,9 @@ struct GameSceneView: UIViewRepresentable {
             Diagnostics.stamp(.buildingCity)
             buildGround()
             buildRoads()
+            addCrosswalks()
             buildCity()
+            addParkedCars()
             buildLandmarks()
 
             // Actors
@@ -319,10 +323,12 @@ struct GameSceneView: UIViewRepresentable {
             // Sun direction from elevation + azimuth.
             sunNode.eulerAngles = SCNVector3(-sky.sunElevation - 0.15, sky.sunAzimuth, 0)
 
-            scene.fogColor = UIColor(red: CGFloat(0.06 + sky.daylight * 0.30),
-                                     green: CGFloat(0.07 + sky.daylight * 0.34),
-                                     blue: CGFloat(0.13 + sky.daylight * 0.38),
-                                     alpha: 1)
+            // Match the haze to the sky's own horizon band so distance reads as
+            // air rather than as everything fading to a dark smear.
+            let (hr, hg, hb) = sky.horizon
+            scene.fogColor = UIColor(red: min(1, hr * 0.92),
+                                     green: min(1, hg * 0.94),
+                                     blue: min(1, hb * 0.98), alpha: 1)
         }
 
         /// The expensive slice: redrawing the sky image and walking every

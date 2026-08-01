@@ -39,10 +39,10 @@ final class WeatherSystem {
 
         var fogEnd: CGFloat {
             switch self {
-            case .clear:    return 900
-            case .overcast: return 620
-            case .drizzle:  return 460
-            case .storm:    return 300
+            case .clear:    return 620
+            case .overcast: return 480
+            case .drizzle:  return 380
+            case .storm:    return 260
             }
         }
     }
@@ -159,7 +159,8 @@ final class WeatherSystem {
 
         if changed {
             scene.fogEndDistance = condition.fogEnd
-            scene.fogStartDistance = condition.fogEnd * 0.25
+            // A long ramp: haze that switches on abruptly looks like a wall.
+            scene.fogStartDistance = condition.fogEnd * 0.12
         }
 
         return changed
