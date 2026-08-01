@@ -14,19 +14,31 @@ lose the police when it goes wrong.
 Everything below is custom code in `NeonReign/Render/`, not SceneKit defaults:
 
 - **Custom Metal post chain** (`Shaders.metal`, wired by `RenderPipeline.swift`
-  as an `SCNTechnique`): bright pass → separable gaussian bloom →
-  **screen-space reflections** raymarched against the depth buffer →
-  **light shafts** → composite with **ACES filmic tonemapping**, chromatic
-  aberration, animated film grain and vignette → **FXAA**.
+  as an `SCNTechnique`): bright pass → **two-tier bloom** (a tight half-res
+  halo plus a wide quarter-res haze) → **screen-space reflections** raymarched
+  against the depth buffer with 20 jittered steps, distance-based ray spread
+  and a fresnel term → **light shafts** → composite with **ACES filmic
+  tonemapping**, **split toning** (cold shadows, warm highlights), chromatic
+  aberration, animated film grain, **rain droplets that refract the frame**,
+  and vignette → **FXAA**.
+- **16× anisotropic filtering** on every surface — the single biggest win on
+  road texture, which otherwise turns to mush a few metres ahead of the car.
 - **Procedural PBR textures** (`TextureFactory.swift`): albedo, tangent-space
   normal, roughness and AO maps generated at runtime for asphalt, sidewalk,
   facades, and painted metal. The app ships no binary art.
 - **Shader modifiers** (`ShaderModifiers.swift`): a wet-road surface modifier
-  that blends puddles into roughness and reflectivity, animated neon flicker,
-  fresnel car paint with metallic flake, glass, and wind-swayed foliage.
+  that blends puddles into roughness and reflectivity and adds **animated rain
+  ripples** during a downpour, animated neon flicker, fresnel car paint with
+  metallic flake, glass, and wind-swayed foliage.
+- **Cascaded sun shadows** that follow the player, so contact shadows under the
+  wheels stay sharp while the block behind still casts.
+- **Cars** carry contact-shadow blobs, tail lights that flare under braking,
+  and volumetric headlight cones after dark. **Roofs** carry parapets, plant
+  housings and pulsing aircraft warning lights.
 - **Analytic sky + HDR environment** (`Sky.swift`) regenerated as the clock
-  moves, fed to `lightingEnvironment` so metal and wet tarmac reflect the actual
-  time of day.
+  moves — stars, a sun/moon disc with a glow halo, and a cloud band lit warm
+  near the sun — fed to `lightingEnvironment` so metal and wet tarmac reflect
+  the actual time of day.
 - **Day/night cycle** — a full 24 hours every 20 minutes of play. At dusk
   window emission, street lights, neon and headlights all come up.
 - **Weather** (`Weather.swift`) that drives `wetness` into the road shader and
@@ -40,7 +52,7 @@ Everything below is custom code in `NeonReign/Render/`, not SceneKit defaults:
 |---|---|
 | **Balanced** | Bloom + grade. No SSR, no shafts, no FXAA. Default in the Simulator, which software-renders Metal. |
 | **High** | Adds screen-space reflections, light shafts, motion blur, 2× MSAA. |
-| **Ultra** | Adds FXAA, 4× MSAA, 4K shadow maps, 18 live lights. |
+| **Ultra** | Adds FXAA, 4× MSAA, 4K shadow maps, 3 shadow cascades, 1024px textures, 18 live lights. |
 
 Switch tiers any time from the ☰ menu. If SceneKit rejects the technique on a
 given device, the game falls back to the camera's built-in HDR pipeline rather
@@ -73,7 +85,27 @@ than failing to render.
 - **Get out / Get in** — swap between driving and on foot.
 - **☰** — job list, graphics quality, abandon job, reset progress.
 
-## Running it
+## Installing on your iPhone with KSign
+
+Every push builds an **unsigned `.ipa`** and attaches it to the repo's `latest`
+release. To install:
+
+1. On your iPhone, open the release page:
+   <https://github.com/bisnis1243102-maker/nokdkssdf/releases/tag/latest>
+2. Tap **`NeonReign-unsigned.ipa`** to download it directly (it is a plain
+   file, not a zip).
+3. Open **KSign**, import the downloaded `.ipa`, and sign it with your
+   certificate / Apple ID.
+4. Install, then trust the profile under
+   *Settings → General → VPN & Device Management*.
+
+Direct link to the file:
+<https://github.com/bisnis1243102-maker/nokdkssdf/releases/download/latest/NeonReign-unsigned.ipa>
+
+The app's bundle identifier is `com.example.NeonReign` and it installs as
+**Neon Reign**, so it will not collide with the other apps in this repo.
+
+## Running it from source
 
 1. Open `NeonReign.xcodeproj` in **Xcode 15+**.
 2. Pick an iPhone simulator or your device and press **⌘R**.
