@@ -9,6 +9,9 @@ struct GameSceneView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }
 
     func makeUIView(context: Context) -> SCNView {
+        // Must be set before anything builds a material.
+        ShaderModifiers.enabled = model.surfaceShaders
+
         let view = SCNView()
         view.scene = context.coordinator.buildScene()
         view.delegate = context.coordinator

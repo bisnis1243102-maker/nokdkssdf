@@ -8,6 +8,9 @@ struct ContentView: View {
         ZStack {
             GameSceneView(model: model)
                 .ignoresSafeArea()
+                // Materials are created while the world is built, so flipping
+                // the surface-shader switch has to rebuild the scene.
+                .id(model.sceneVersion)
 
             hud
             controls
@@ -485,6 +488,13 @@ private struct MenuView: View {
                         .foregroundStyle(.secondary)
                     Text("If the world is black, step down through these: whichever one shows the city tells us which layer is at fault.")
                         .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Surfaces") {
+                    Toggle("Surface shaders", isOn: $model.surfaceShaders)
+                    Text("Wet roads, neon flicker, car paint. If any surface is bright magenta, its shader failed to compile — turn this off to fall back to plain materials.")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 

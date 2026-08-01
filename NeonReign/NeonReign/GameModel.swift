@@ -151,6 +151,20 @@ final class GameModel: ObservableObject {
     /// Bumped when the renderer must be rebuilt for a new quality tier.
     @Published var qualityVersion = 0
 
+    /// Custom per-material shader modifiers (wet roads, neon flicker, car
+    /// paint). If any of them fail to compile the affected surfaces render
+    /// solid magenta, so this switch exists to take them out of the picture.
+    @Published var surfaceShaders: Bool {
+        didSet {
+            UserDefaults.standard.set(surfaceShaders, forKey: Keys.surfaceShaders)
+            // Materials are built with the world, so the scene has to be rebuilt
+            // for this to take effect.
+            sceneVersion += 1
+        }
+    }
+    /// Bumped to force a full scene rebuild.
+    @Published var sceneVersion = 0
+
     /// Which layers of the render path run. Changing it rebuilds the renderer.
     @Published var renderMode: RenderMode {
         didSet {
@@ -165,6 +179,7 @@ final class GameModel: ObservableObject {
         static let quality = "neonreign.quality"
         static let diagnostics = "neonreign.showDiagnostics"
         static let renderMode = "neonreign.renderMode"
+        static let surfaceShaders = "neonreign.surfaceShaders"
     }
 
     init() {
@@ -198,6 +213,8 @@ final class GameModel: ObservableObject {
         } else {
             renderMode = .cameraFX
         }
+
+        surfaceShaders = d.object(forKey: Keys.surfaceShaders) as? Bool ?? true
 
         // Everything without a default is initialised by this point, so `self`
         // is usable — these two must not be assigned any earlier.

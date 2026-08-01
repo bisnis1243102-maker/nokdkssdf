@@ -53,7 +53,7 @@ extension GameSceneView.Coordinator {
                                      repeatY: vertical ? 40 : 1)
                 // Wet-road modifier: this is the surface the reflections land on.
                 ShaderModifiers.applyWetRoad(to: m)
-                weather.register(wetMaterial: m)
+                if ShaderModifiers.enabled { weather.register(wetMaterial: m) }
 
                 let node = SCNNode(geometry: plane)
                 node.eulerAngles.x = -.pi / 2
@@ -146,7 +146,7 @@ extension GameSceneView.Coordinator {
         TextureFactory.apply(TextureFactory.sidewalk(size: TextureFactory.detailSize(model.quality.textureSize)),
                              to: m, repeatX: 6, repeatY: 6)
         ShaderModifiers.applyWetRoad(to: m)
-        weather.register(wetMaterial: m)
+        if ShaderModifiers.enabled { weather.register(wetMaterial: m) }
 
         let node = SCNNode(geometry: plane)
         node.eulerAngles.x = -.pi / 2
@@ -313,7 +313,7 @@ extension GameSceneView.Coordinator {
         m.emission.contents = TextureFactory.neonSign(size: 128, color: color, seed: seed)
         m.isDoubleSided = true
         ShaderModifiers.applyNeon(to: m, seed: Float(seed % 97) / 97)
-        neonMaterials.append(m)
+        if ShaderModifiers.enabled { neonMaterials.append(m) }
 
         // The box's local origin is its centre, so the front face sits at -depth/2.
         let faceZ = -size.z / 2 - 0.12
@@ -385,17 +385,23 @@ extension GameSceneView.Coordinator {
     /// eye and not only by the HUD arrow.
     func buildLandmarks() {
         for (_, l) in CityWorld.landmarks {
-            let tower = SCNCylinder(radius: 0.6, height: 26)
+            // Thin and faint on purpose: at the old radius these translucent
+            // columns filled the screen with a haze band when you drove past
+            // one. They are meant to be findable from across the map, not
+            // something you look at up close.
+            let tower = SCNCylinder(radius: 0.22, height: 30)
             let m = tower.firstMaterial!
             m.lightingModel = .constant
             m.diffuse.contents = UIColor.black
             m.emission.contents = UIColor(red: 0.55, green: 0.85, blue: 1.0, alpha: 1)
-            m.emission.intensity = 0.35
-            m.transparency = 0.30
+            m.emission.intensity = 0.30
+            m.transparency = 0.14
+            m.writesToDepthBuffer = false
 
             let n = SCNNode(geometry: tower)
-            n.position = SCNVector3(l.x, 13, l.z)
+            n.position = SCNVector3(l.x, 16, l.z)
             n.castsShadow = false
+            n.renderingOrder = 10
             scene.rootNode.addChildNode(n)
         }
     }
