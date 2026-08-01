@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - claude/mobile-gaming-app-roblox-3f27o5
+      - claude/hello-jbmbom
   workflow_dispatch:
 
 permissions:
@@ -31,6 +32,9 @@ jobs:
           - name: ForsaHorizon
             project: LibertyDrive/LibertyDrive.xcodeproj
             scheme: LibertyDrive
+          - name: NeonReign
+            project: NeonReign/NeonReign.xcodeproj
+            scheme: NeonReign
     steps:
       - name: Checkout
         uses: actions/checkout@v4
