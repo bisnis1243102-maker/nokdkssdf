@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - claude/mobile-gaming-app-roblox-3f27o5
+      - claude/new-session-gia7xl
   workflow_dispatch:
 
 permissions:
@@ -25,6 +26,9 @@ jobs:
           - name: BloomTycoon
             project: GrowAGarden2/GrowAGarden2.xcodeproj
             scheme: GrowAGarden2
+          - name: ArtForge
+            project: ArtForge/ArtForge.xcodeproj
+            scheme: ArtForge
           - name: Billiard
             project: Billiard/Billiard.xcodeproj
             scheme: Billiard
