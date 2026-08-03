@@ -15,6 +15,10 @@
 		4D0000000000000000000006 /* ArtGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000006 /* ArtGenerator.swift */; };
 		4D0000000000000000000007 /* GalleryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000007 /* GalleryStore.swift */; };
 		4D0000000000000000000008 /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000008 /* Scene.swift */; };
+		4D0000000000000000000009 /* Diffusion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000009 /* Diffusion.swift */; };
+		4D0000000000000000000010 /* DiffusionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000010 /* DiffusionView.swift */; };
+		4D0000000000000000000011 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000011 /* RootView.swift */; };
+		4D0000000000000000009999 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = 4F0000000000000000000001 /* StableDiffusion */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +31,9 @@
 		4C0000000000000000000006 /* ArtGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtGenerator.swift; sourceTree = "<group>"; };
 		4C0000000000000000000007 /* GalleryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryStore.swift; sourceTree = "<group>"; };
 		4C0000000000000000000008 /* Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
+		4C0000000000000000000009 /* Diffusion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diffusion.swift; sourceTree = "<group>"; };
+		4C0000000000000000000010 /* DiffusionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffusionView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000011 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -34,6 +41,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4D0000000000000000009999 /* StableDiffusion in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -58,6 +66,9 @@
 				4C0000000000000000000006 /* ArtGenerator.swift */,
 				4C0000000000000000000007 /* GalleryStore.swift */,
 				4C0000000000000000000008 /* Scene.swift */,
+				4C0000000000000000000009 /* Diffusion.swift */,
+				4C0000000000000000000010 /* DiffusionView.swift */,
+				4C0000000000000000000011 /* RootView.swift */,
 				4C0000000000000000000004 /* Assets.xcassets */,
 			);
 			path = ArtForge;
@@ -87,6 +98,9 @@
 			dependencies = (
 			);
 			name = ArtForge;
+			packageProductDependencies = (
+				4F0000000000000000000001 /* StableDiffusion */,
+			);
 			productName = ArtForge;
 			productReference = 4B000000000000000000000F /* ArtForge.app */;
 			productType = "com.apple.product-type.application";
@@ -115,6 +129,9 @@
 				Base,
 			);
 			mainGroup = 4B0000000000000000000003;
+			packageReferences = (
+				4E0000000000000000000001 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */,
+			);
 			productRefGroup = 4B0000000000000000000005 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -143,6 +160,9 @@
 				4D0000000000000000000003 /* Core.swift in Sources */,
 				4D0000000000000000000002 /* ContentView.swift in Sources */,
 				4D0000000000000000000001 /* ArtForgeApp.swift in Sources */,
+				4D0000000000000000000009 /* Diffusion.swift in Sources */,
+				4D0000000000000000000010 /* DiffusionView.swift in Sources */,
+				4D0000000000000000000011 /* RootView.swift in Sources */,
 				4D0000000000000000000008 /* Scene.swift in Sources */,
 				4D0000000000000000000005 /* Renderers.swift in Sources */,
 				4D0000000000000000000006 /* ArtGenerator.swift in Sources */,
@@ -175,7 +195,7 @@
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -201,7 +221,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -289,6 +309,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4E0000000000000000000001 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/ml-stable-diffusion.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4F0000000000000000000001 /* StableDiffusion */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4E0000000000000000000001 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */;
+			productName = StableDiffusion;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4B0000000000000000000001 /* Project object */;
 }
