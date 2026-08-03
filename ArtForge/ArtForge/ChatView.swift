@@ -39,6 +39,7 @@ struct ChatView: View {
     @State private var showSetupHelp = false
     @State private var importStatus: String?
     @State private var importError: String?
+    @StateObject private var downloader = ModelDownloader()
 
     private let suggestions = [
         "a red fox in a snowy forest, cinematic",
@@ -369,6 +370,9 @@ struct ChatView: View {
                     } else {
                         Text("No model installed").foregroundColor(.secondary)
                     }
+                    if !DiffusionEngine.modelInstalled() {
+                        Button("Download a model") { showSettings = false }
+                    }
                     Button("Import model folder") { showSettings = false; showImporter = true }
                     Button("How do I get a model?") { showSetupHelp = true }
                     if DiffusionEngine.modelInstalled() {
@@ -394,19 +398,67 @@ struct ChatView: View {
     // MARK: Setup
 
     private var setupCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("I need a model first")
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(Theme.primaryText)
             Text("""
-                 To draw anything you describe I need a Stable Diffusion model \
-                 converted to Core ML. It is 1.5–2.5 GB — too big to ship inside \
-                 the app — so you install it once. Nothing is uploaded and there \
-                 is no account or key: after setup this works in airplane mode.
+                 To draw anything you describe I need a Stable Diffusion model. \
+                 I can download one for you right here over Wi-Fi — no computer, \
+                 no account, no key. It is a one-time download; after that this \
+                 works in airplane mode.
                  """)
                 .font(.footnote)
                 .foregroundColor(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if downloader.isBusy || downloader.phase == .finished || isDownloadFailed {
+                downloadProgress
+            } else {
+                ForEach(ModelOption.catalog) { option in
+                    Button {
+                        downloader.start(option)
+                    } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(Theme.accent)
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack {
+                                    Text(option.title)
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundColor(Theme.primaryText)
+                                    Text(option.sizeText)
+                                        .font(.caption2)
+                                        .foregroundColor(Theme.accent)
+                                }
+                                Text(option.detail)
+                                    .font(.caption2)
+                                    .foregroundColor(Theme.secondaryText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(12)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.background))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.hairline, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text("Downloads on Wi-Fi only. Keep the app open while it runs.")
+                    .font(.caption2)
+                    .foregroundColor(Theme.secondaryText)
+
+                HStack(spacing: 14) {
+                    Button("Already have one? Import") { showImporter = true }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Theme.accent)
+                    Button("Details") { showSetupHelp = true }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Theme.secondaryText)
+                }
+            }
 
             if let importStatus {
                 HStack(spacing: 8) {
@@ -414,43 +466,64 @@ struct ChatView: View {
                     Text(importStatus).font(.caption).foregroundColor(Theme.primaryText)
                 }
             }
-
-            HStack(spacing: 10) {
-                Button { showImporter = true } label: {
-                    Text("Choose folder")
-                        .font(.footnote.weight(.bold))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Capsule().fill(Theme.accent))
-                        .foregroundColor(.black)
-                }
-                .buttonStyle(.plain)
-                .disabled(importStatus != nil)
-
-                Button("How?") { showSetupHelp = true }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Theme.accent)
-            }
         }
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 16).fill(Theme.card))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.hairline, lineWidth: 1))
+        .onChange(of: downloader.phase) { phase in
+            if phase == .finished {
+                engine.refreshModelState()
+                messages.append(ChatMessage(role: .assistant,
+                                            body: .text("Model installed. What should I draw?")))
+            }
+        }
+    }
+
+    private var isDownloadFailed: Bool {
+        if case .failed = downloader.phase { return true }
+        return false
+    }
+
+    private var downloadProgress: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let fraction = downloader.fraction {
+                ProgressView(value: fraction).tint(Theme.accent)
+            } else if downloader.isBusy {
+                ProgressView().tint(Theme.accent)
+            }
+            HStack {
+                Text(downloader.statusText)
+                    .font(.caption)
+                    .foregroundColor(isDownloadFailed ? .red.opacity(0.9) : Theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                if downloader.isBusy {
+                    Button("Cancel") { downloader.cancel() }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.red.opacity(0.85))
+                } else if isDownloadFailed {
+                    Button("Try again") { downloader.cancel() }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Theme.accent)
+                }
+            }
+        }
     }
 
     private var setupInstructions: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    step(1, "Download a Core ML model",
-                         "On a computer, get a Core ML converted Stable Diffusion model — for example Apple's coreml-stable-diffusion-2-1-base-palettized on Hugging Face. Choose the split_einsum variant: that is the one built for the Neural Engine.")
-                    step(2, "Unzip it",
-                         "You want the folder that directly contains Unet.mlmodelc, TextEncoder.mlmodelc, VAEDecoder.mlmodelc, merges.txt and vocab.json.")
-                    step(3, "Get it onto the phone",
-                         "AirDrop the folder to your iPhone, or put it in the Files app via iCloud Drive or Finder over USB.")
-                    step(4, "Import it",
-                         "Tap “Choose folder” and select it. Copying a few gigabytes takes a couple of minutes.")
-                    step(5, "Chat",
+                    step(1, "Tap a model above",
+                         "The app downloads it straight to your phone from Apple's public Core ML model release. No computer, no account, no key — it is an ordinary file download.")
+                    step(2, "Wait for the download",
+                         "1.1–1.6 GB over Wi-Fi. Keep ArtForge open while it runs; you can cancel any time and start again later.")
+                    step(3, "Unpacking",
+                         "The zip is expanded and installed automatically. You need roughly 3 GB free while this happens; about half is freed again at the end.")
+                    step(4, "Chat",
                          "Type anything. A 20-step image takes roughly 20–40 seconds on an A16 or newer.")
+                    step(5, "Or bring your own",
+                         "If you already have a Core ML model in Files, use Import instead and pick the folder containing Unet.mlmodelc.")
 
                     Text("Needs an iPhone with plenty of RAM — iPhone 13 Pro or newer is comfortable. Palettized (6-bit) models load faster and use far less memory.")
                         .font(.caption)

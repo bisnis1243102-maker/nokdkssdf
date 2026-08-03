@@ -19,6 +19,8 @@
 		4D0000000000000000000010 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000010 /* ChatView.swift */; };
 		4D0000000000000000000011 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000011 /* RootView.swift */; };
 		4D0000000000000000009999 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = 4F0000000000000000000001 /* StableDiffusion */; };
+		4D0000000000000000000012 /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000012 /* ModelDownloader.swift */; };
+		4D0000000000000000009998 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 4F0000000000000000000002 /* ZIPFoundation */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +36,7 @@
 		4C0000000000000000000009 /* Diffusion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diffusion.swift; sourceTree = "<group>"; };
 		4C0000000000000000000010 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		4C0000000000000000000011 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000012 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -42,6 +45,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D0000000000000000009999 /* StableDiffusion in Frameworks */,
+				4D0000000000000000009998 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -69,6 +73,7 @@
 				4C0000000000000000000009 /* Diffusion.swift */,
 				4C0000000000000000000010 /* ChatView.swift */,
 				4C0000000000000000000011 /* RootView.swift */,
+				4C0000000000000000000012 /* ModelDownloader.swift */,
 				4C0000000000000000000004 /* Assets.xcassets */,
 			);
 			path = ArtForge;
@@ -100,6 +105,7 @@
 			name = ArtForge;
 			packageProductDependencies = (
 				4F0000000000000000000001 /* StableDiffusion */,
+				4F0000000000000000000002 /* ZIPFoundation */,
 			);
 			productName = ArtForge;
 			productReference = 4B000000000000000000000F /* ArtForge.app */;
@@ -131,6 +137,7 @@
 			mainGroup = 4B0000000000000000000003;
 			packageReferences = (
 				4E0000000000000000000001 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */,
+				4E0000000000000000000002 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
 			productRefGroup = 4B0000000000000000000005 /* Products */;
 			projectDirPath = "";
@@ -160,6 +167,7 @@
 				4D0000000000000000000003 /* Core.swift in Sources */,
 				4D0000000000000000000002 /* ContentView.swift in Sources */,
 				4D0000000000000000000001 /* ArtForgeApp.swift in Sources */,
+				4D0000000000000000000012 /* ModelDownloader.swift in Sources */,
 				4D0000000000000000000009 /* Diffusion.swift in Sources */,
 				4D0000000000000000000010 /* ChatView.swift in Sources */,
 				4D0000000000000000000011 /* RootView.swift in Sources */,
@@ -319,6 +327,14 @@
 				minimumVersion = 1.1.0;
 			};
 		};
+		4E0000000000000000000002 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -326,6 +342,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4E0000000000000000000001 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */;
 			productName = StableDiffusion;
+		};
+		4F0000000000000000000002 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4E0000000000000000000002 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
