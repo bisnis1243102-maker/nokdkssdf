@@ -39,8 +39,6 @@ struct MenuBackground: View {
                 Canvas { ctx, size in
                     // Low-poly facets — cheap, and it keeps the menus from
                     // reading as a flat gradient.
-                    var rng = SystemRandomNumberGenerator()
-                    _ = rng
                     let cols = 7, rows = 5
                     for r in 0..<rows {
                         for c in 0..<cols {

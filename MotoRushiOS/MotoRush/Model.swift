@@ -122,7 +122,7 @@ struct Region: Identifiable {
     static let all: [Region] = buildRegions()
 
     private static func buildRegions() -> [Region] {
-        let defs: [(String, String, String, String, [String])] = [
+        let defs: [(id: String, name: String, tint: String, tint2: String, series: String, biomes: [String])] = [
             ("copper", "Copper Basin", "#E8A13A", "#8A4B1E", "Rookie Circuit",
              ["motocross", "forest", "motocross", "sand", "motocross", "supercross", "mountain", "motocross"]),
             ("north", "Northlands", "#8FD9FF", "#2C5C8A", "Cold Series",
@@ -144,12 +144,12 @@ struct Region: Identifiable {
         var seedBase: UInt32 = 0xA17C3
         for (ri, def) in defs.enumerated() {
             var tracks: [CareerTrack] = []
-            for (ti, biome) in def.4.enumerated() {
+            for (ti, biome) in def.biomes.enumerated() {
                 let difficulty = clampd(0.18 + Double(ri) * 0.13 + Double(ti) * 0.045, 0.15, 0.98)
                 let power = 480 + ri * 260 + ti * 55
                 seedBase = seedBase &* 1664525 &+ 1013904223
                 tracks.append(CareerTrack(
-                    id: "\(def.0)-\(ti)",
+                    id: "\(def.id)-\(ti)",
                     name: trackNames[ti % trackNames.count],
                     seed: seedBase,
                     biome: biome,
@@ -157,7 +157,7 @@ struct Region: Identifiable {
                     recommendedPower: power,
                     index: ti))
             }
-            out.append(Region(id: def.0, name: def.1, tint: def.2, tint2: def.3, tracks: tracks))
+            out.append(Region(id: def.id, name: def.name, tint: def.tint, tint2: def.tint2, tracks: tracks))
         }
         return out
     }

@@ -453,7 +453,8 @@ final class Bike {
 
     private func updateRagdoll(_ dt: Double) {
         guard !ragdoll.isEmpty else { return }
-        for (k, var p) in ragdoll {
+        for k in ragdoll.keys {
+            guard var p = ragdoll[k] else { continue }
             let vxp = (p.x - p.px) * 0.985
             let vyp = (p.y - p.py) * 0.985
             p.px = p.x; p.py = p.y

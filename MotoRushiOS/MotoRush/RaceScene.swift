@@ -1,5 +1,6 @@
 import SpriteKit
 import SwiftUI
+import UIKit
 
 // The race scene. Everything drawn here is procedural geometry — there are no
 // image assets in the project.
