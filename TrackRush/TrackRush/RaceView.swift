@@ -91,7 +91,7 @@ struct RaceView: View {
                             .foregroundColor(Palette.accent.opacity(0.9))
                     }
                     Spacer()
-                    Text("\(Int(abs(speed) / 8)) km/h")
+                    Text("\(Int(abs(speed) / 5.2)) km/h")
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
                         .foregroundColor(.white.opacity(0.75))
                 }

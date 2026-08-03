@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import ZIPFoundation
 
 /// A model the app knows how to fetch. These are Apple's own Core ML
@@ -30,20 +31,20 @@ struct ModelOption: Identifiable, Hashable {
 /// Downloads a model zip straight to the phone and unpacks it into place, so
 /// no computer is needed anywhere in the process.
 ///
-/// A background `URLSession` does the transfer, which means it keeps running
-/// when the app is backgrounded or the screen locks — a gigabyte takes long
-/// enough that requiring the app stay open in the foreground was the single
-/// biggest thing making installation feel slow.
+/// The bytes are streamed into a file this app owns, rather than using a
+/// download task. A download task hands back a file staged in the URL session
+/// daemon's own directory, and a re-signed sideloaded build has no permission
+/// to read — let alone delete — anything in there, which fails the install at
+/// the very last step. Writing our own file sidesteps that completely and
+/// makes resuming a matter of an HTTP range request.
 @MainActor
 final class ModelDownloader: NSObject, ObservableObject {
 
-    /// One instance for the whole app: a background session is tied to its
-    /// identifier, and creating a second with the same one traps.
+    /// One instance for the whole app so a download survives leaving the tab.
     static let shared = ModelDownloader()
 
     enum Phase: Equatable {
         case idle
-        case waitingForNetwork
         case downloading(received: Int64, total: Int64)
         case unpacking(fraction: Double)
         case finished
@@ -53,47 +54,50 @@ final class ModelDownloader: NSObject, ObservableObject {
     @Published private(set) var phase: Phase = .idle
     /// Bytes per second, smoothed. Nil until there is enough to measure.
     @Published private(set) var speed: Double?
-    /// Set when a download is interrupted and can be picked up where it left off.
+    /// True when a partial file is on disk and the server can resume it.
     @Published private(set) var canResume = false
 
     /// Cellular is allowed only if the user opts in — this is over a gigabyte.
     @Published var allowCellular = false
 
-    private var resumeData: Data?
-    private var task: URLSessionDownloadTask?
+    private var task: URLSessionDataTask?
+    private var handle: FileHandle?
+    private var received: Int64 = 0
+    private var expected: Int64 = 0
     private var lastSampleTime: Date?
     private var lastSampleBytes: Int64 = 0
+    private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+
+    /// The partial download. Kept in Application Support rather than tmp so iOS
+    /// will not reclaim it between attempts.
+    nonisolated static var partialURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return base.appendingPathComponent("model-download.zip")
+    }
 
     private lazy var session: URLSession = {
-        let configuration = URLSessionConfiguration.background(withIdentifier: "com.example.ArtForge.modelDownload")
-        // Discretionary lets iOS defer the transfer to "a good time", which can
-        // mean not starting for ages. The user just tapped a button; go now.
-        configuration.isDiscretionary = false
-        configuration.sessionSendsLaunchEvents = true
-        configuration.allowsCellularAccess = true   // gated per request instead
+        let configuration = URLSessionConfiguration.default
+        configuration.allowsCellularAccess = true    // gated per request instead
+        configuration.timeoutIntervalForRequest = 60
         configuration.timeoutIntervalForResource = 60 * 60 * 6
+        configuration.waitsForConnectivity = true
         return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
     }()
 
     private override init() {
         super.init()
-        // A transfer may have kept running while the app was away; adopt it.
-        Task { await adoptExistingTask() }
+        canResume = Self.partialBytes() > 0
     }
 
-    private func adoptExistingTask() async {
-        let tasks = await session.tasks.2
-        if let existing = tasks.first {
-            task = existing
-            phase = .downloading(received: existing.countOfBytesReceived,
-                                 total: max(existing.countOfBytesExpectedToReceive,
-                                            ModelOption.standard.approximateBytes))
-        }
+    nonisolated private static func partialBytes() -> Int64 {
+        let values = try? partialURL.resourceValues(forKeys: [.fileSizeKey])
+        return Int64(values?.fileSize ?? 0)
     }
 
     var isBusy: Bool {
         switch phase {
-        case .downloading, .unpacking, .waitingForNetwork: return true
+        case .downloading, .unpacking: return true
         default: return false
         }
     }
@@ -102,9 +106,7 @@ final class ModelDownloader: NSObject, ObservableObject {
     var statusText: String {
         switch phase {
         case .idle:
-            return ""
-        case .waitingForNetwork:
-            return allowCellular ? "Waiting for a connection…" : "Waiting for Wi-Fi…"
+            return canResume ? "Paused — \(ByteCountFormatter.string(fromByteCount: Self.partialBytes(), countStyle: .file)) downloaded" : ""
         case .downloading(let received, let total):
             let got = ByteCountFormatter.string(fromByteCount: received, countStyle: .file)
             guard total > 0 else { return "Downloading \(got)…" }
@@ -151,60 +153,60 @@ final class ModelDownloader: NSObject, ObservableObject {
     func start(_ option: ModelOption) {
         guard !isBusy else { return }
 
-        // A model needs room for the zip and the unpacked copy at once.
-        if let free = Self.availableBytes(), free < option.approximateBytes * 7 / 2 {
-            let needed = ByteCountFormatter.string(fromByteCount: option.approximateBytes * 7 / 2, countStyle: .file)
+        let alreadyHave = Self.partialBytes()
+        if let free = Self.availableBytes(), free + alreadyHave < option.approximateBytes * 3 {
+            let needed = ByteCountFormatter.string(fromByteCount: option.approximateBytes * 3, countStyle: .file)
             let have = ByteCountFormatter.string(fromByteCount: free, countStyle: .file)
             phase = .failed("Not enough space. Need about \(needed) free while installing, you have \(have).")
             return
         }
 
+        var request = URLRequest(url: option.url)
+        request.allowsCellularAccess = allowCellular
+        if alreadyHave > 0 {
+            // Ask the server to carry on from where the partial file stops.
+            request.setValue("bytes=\(alreadyHave)-", forHTTPHeaderField: "Range")
+        }
+
+        received = alreadyHave
+        expected = option.approximateBytes
         speed = nil
         lastSampleTime = nil
-        lastSampleBytes = 0
-        phase = .downloading(received: 0, total: option.approximateBytes)
+        lastSampleBytes = alreadyHave
+        phase = .downloading(received: received, total: expected)
 
-        let task: URLSessionDownloadTask
-        if let resumeData {
-            task = session.downloadTask(withResumeData: resumeData)
-            self.resumeData = nil
-        } else {
-            var request = URLRequest(url: option.url)
-            request.allowsCellularAccess = allowCellular
-            task = session.downloadTask(with: request)
-        }
-        task.countOfBytesClientExpectsToReceive = option.approximateBytes
+        beginBackgroundAssertion()
+        let task = session.dataTask(with: request)
         self.task = task
-        canResume = false
         task.resume()
     }
 
-    /// Stops but keeps what has been fetched, so Resume picks up mid-file.
+    /// Stops but keeps the partial file, so Resume continues mid-download.
     func pause() {
-        task?.cancel { data in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.resumeData = data
-                self.canResume = data != nil
-                self.task = nil
-                self.phase = .idle
-            }
-        }
+        task?.cancel()
+        task = nil
+        closeHandle()
+        endBackgroundAssertion()
+        canResume = Self.partialBytes() > 0
+        phase = .idle
     }
 
-    /// Clears any failed state and starts over from scratch.
-    func restart(_ option: ModelOption) {
-        cancel()
-        start(option)
-    }
-
+    /// Throws away the partial file and any error state.
     func cancel() {
         task?.cancel()
         task = nil
-        resumeData = nil
+        closeHandle()
+        endBackgroundAssertion()
+        try? FileManager.default.removeItem(at: Self.partialURL)
         canResume = false
         speed = nil
         phase = .idle
+    }
+
+    /// Clears a failure and starts over from scratch.
+    func restart(_ option: ModelOption) {
+        cancel()
+        start(option)
     }
 
     private static func availableBytes() -> Int64? {
@@ -213,7 +215,62 @@ final class ModelDownloader: NSObject, ObservableObject {
             .volumeAvailableCapacityForImportantUsage
     }
 
-    fileprivate func record(received: Int64, total: Int64) {
+    /// Buys a few minutes of running time if the user leaves the app mid-file.
+    private func beginBackgroundAssertion() {
+        endBackgroundAssertion()
+        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "model-download") { [weak self] in
+            Task { @MainActor in self?.pause() }
+        }
+    }
+
+    private func endBackgroundAssertion() {
+        guard backgroundTask != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(backgroundTask)
+        backgroundTask = .invalid
+    }
+
+    private func closeHandle() {
+        try? handle?.close()
+        handle = nil
+    }
+
+    // MARK: - Streaming
+
+    fileprivate func openFile(appending: Bool, total expectedTotal: Int64) -> Bool {
+        let fm = FileManager.default
+        let url = Self.partialURL
+        if !appending {
+            try? fm.removeItem(at: url)
+            received = 0
+            lastSampleBytes = 0
+        }
+        if !fm.fileExists(atPath: url.path) {
+            fm.createFile(atPath: url.path, contents: nil)
+        }
+        do {
+            let handle = try FileHandle(forWritingTo: url)
+            try handle.seekToEnd()
+            self.handle = handle
+            self.expected = expectedTotal
+            return true
+        } catch {
+            phase = .failed(error.localizedDescription)
+            return false
+        }
+    }
+
+    fileprivate func append(_ data: Data) {
+        guard let handle else { return }
+        do {
+            try handle.write(contentsOf: data)
+        } catch {
+            task?.cancel()
+            task = nil
+            phase = .failed(error.localizedDescription)
+            return
+        }
+        received += Int64(data.count)
+
         let now = Date()
         if let last = lastSampleTime {
             let elapsed = now.timeIntervalSince(last)
@@ -228,14 +285,30 @@ final class ModelDownloader: NSObject, ObservableObject {
             lastSampleTime = now
             lastSampleBytes = received
         }
-        phase = .downloading(received: received, total: total)
+        phase = .downloading(received: received, total: max(expected, received))
+    }
+
+    fileprivate func completed(error: Error?) {
+        closeHandle()
+        endBackgroundAssertion()
+        task = nil
+
+        if let error {
+            let nsError = error as NSError
+            guard nsError.code != NSURLErrorCancelled else { return }
+            canResume = Self.partialBytes() > 0
+            phase = .failed(error.localizedDescription)
+            return
+        }
+        unpack()
     }
 
     // MARK: - Unpacking
 
-    fileprivate func finish(downloadedTo temporaryURL: URL) {
+    private func unpack() {
         phase = .unpacking(fraction: 0)
         canResume = false
+        let archive = Self.partialURL
         let staging = FileManager.default.temporaryDirectory
             .appendingPathComponent("model-unpack-\(UUID().uuidString)", isDirectory: true)
         let progress = Progress(totalUnitCount: 1)
@@ -262,9 +335,8 @@ final class ModelDownloader: NSObject, ObservableObject {
                 try fm.createDirectory(at: unpacked, withIntermediateDirectories: true)
                 // skipCRC32 avoids a second full pass over a gigabyte of data
                 // that HTTPS has already checksummed in transit.
-                try fm.unzipItem(at: temporaryURL, to: unpacked,
-                                 skipCRC32: true, progress: progress)
-                try? fm.removeItem(at: temporaryURL)
+                try fm.unzipItem(at: archive, to: unpacked, skipCRC32: true, progress: progress)
+                try? fm.removeItem(at: archive)
 
                 guard let root = Self.findModelRoot(in: unpacked) else {
                     throw NSError(domain: "ArtForge", code: 10, userInfo: [
@@ -292,9 +364,11 @@ final class ModelDownloader: NSObject, ObservableObject {
                 }
             } catch {
                 try? FileManager.default.removeItem(at: staging)
-                try? FileManager.default.removeItem(at: temporaryURL)
                 await MainActor.run {
                     ticker.cancel()
+                    // The archive is suspect if it would not open; start clean.
+                    try? FileManager.default.removeItem(at: archive)
+                    self.canResume = false
                     self.phase = .failed(error.localizedDescription)
                 }
             }
@@ -321,69 +395,38 @@ final class ModelDownloader: NSObject, ObservableObject {
     }
 }
 
-extension ModelDownloader: URLSessionDownloadDelegate {
+extension ModelDownloader: URLSessionDataDelegate {
 
     nonisolated func urlSession(_ session: URLSession,
-                                downloadTask: URLSessionDownloadTask,
-                                didWriteData bytesWritten: Int64,
-                                totalBytesWritten: Int64,
-                                totalBytesExpectedToWrite: Int64) {
+                                dataTask: URLSessionDataTask,
+                                didReceive response: URLResponse,
+                                completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        let http = response as? HTTPURLResponse
+        let status = http?.statusCode ?? 200
+        // 206 means the server honoured our range request and we append;
+        // 200 means it sent the whole file, so start the file over.
+        let appending = status == 206
+        let length = response.expectedContentLength
+        let existing = Self.partialBytes()
+        let total = appending && length > 0 ? existing + length : max(length, 0)
+
         Task { @MainActor in
-            self.record(received: totalBytesWritten,
-                        total: totalBytesExpectedToWrite > 0
-                            ? totalBytesExpectedToWrite
-                            : ModelOption.standard.approximateBytes)
+            guard status < 400 else {
+                completionHandler(.cancel)
+                self.phase = .failed("The server refused the download (HTTP \(status)).")
+                return
+            }
+            let ready = self.openFile(appending: appending,
+                                      total: total > 0 ? total : ModelOption.standard.approximateBytes)
+            completionHandler(ready ? .allow : .cancel)
         }
     }
 
-    nonisolated func urlSession(_ session: URLSession,
-                                downloadTask: URLSessionDownloadTask,
-                                didFinishDownloadingTo location: URL) {
-        // The file is gone the moment this returns, so take it now, synchronously.
-        //
-        // It must be *copied*, not moved: a background session stages the
-        // download outside the app sandbox, where we have read access but no
-        // permission to delete — and a move is a copy plus a delete.
-        let fm = FileManager.default
-        let holding = fm.temporaryDirectory
-            .appendingPathComponent("model-download-\(UUID().uuidString).zip")
-        do {
-            if fm.fileExists(atPath: holding.path) { try fm.removeItem(at: holding) }
-            try fm.copyItem(at: location, to: holding)
-        } catch {
-            Task { @MainActor in self.phase = .failed(error.localizedDescription) }
-            return
-        }
-        Task { @MainActor in self.finish(downloadedTo: holding) }
+    nonisolated func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        Task { @MainActor in self.append(data) }
     }
 
-    nonisolated func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {
-        Task { @MainActor in
-            if case .downloading(let received, _) = self.phase, received == 0 {
-                self.phase = .waitingForNetwork
-            }
-        }
-    }
-
-    nonisolated func urlSession(_ session: URLSession,
-                                task: URLSessionTask,
-                                didCompleteWithError error: Error?) {
-        guard let error else { return }
-        let nsError = error as NSError
-        let cancelled = nsError.code == NSURLErrorCancelled
-        let resume = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
-        Task { @MainActor in
-            if let resume {
-                self.resumeData = resume
-                self.canResume = true
-            }
-            guard !cancelled else { return }
-            switch self.phase {
-            case .downloading, .waitingForNetwork:
-                self.phase = .failed(error.localizedDescription)
-            default:
-                break
-            }
-        }
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        Task { @MainActor in self.completed(error: error) }
     }
 }

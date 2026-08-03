@@ -53,7 +53,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(red: 0.53, green: 0.72, blue: 0.88, alpha: 1)
-        physicsWorld.gravity = CGVector(dx: 0, dy: -13)
+        physicsWorld.gravity = CGVector(dx: 0, dy: -270)
         physicsWorld.contactDelegate = self
 
         camera = cameraNode
@@ -200,7 +200,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         body.collisionBitMask = Category.ground
         body.contactTestBitMask = Category.ground
         body.allowsRotation = true
-        body.angularDamping = 0.7
+        body.angularDamping = 0.55
         body.restitution = 0
         frame.physicsBody = body
         chassis = frame
@@ -223,7 +223,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
             physics.mass = drive ? 0.55 : 0.4
             physics.friction = drive ? 1.0 : 0.75
             physics.restitution = 0.02
-            physics.angularDamping = drive ? 0.22 : 0.32
+            physics.angularDamping = drive ? 0.06 : 0.12
             physics.categoryBitMask = Category.wheel
             physics.collisionBitMask = Category.ground
             wheel.physicsBody = physics
@@ -241,7 +241,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
             let pin = SKPhysicsJointPin.joint(withBodyA: chassis.physicsBody!,
                                               bodyB: wheel.physicsBody!,
                                               anchor: wheel.position)
-            pin.frictionTorque = 0.02
+            pin.frictionTorque = 0.0
             physicsWorld.add(pin)
         }
 
@@ -275,32 +275,36 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     private func drive(delta: TimeInterval) {
         guard let rear = rearWheel.physicsBody, let body = chassis.physicsBody else { return }
 
-        let maxSpin: CGFloat = 46
+        // Torque is sized against the wheel's moment of inertia (about 79 at
+        // this radius and mass) and against gravity, so the bike can actually
+        // climb rather than politely rolling backwards down every hill.
+        let step = CGFloat(delta * 60)
+        let maxSpin: CGFloat = 34
         if throttle {
             // Torque rather than a velocity assignment, so wheelspin, hills and
             // landings all affect acceleration naturally.
             if rear.angularVelocity > -maxSpin {
-                rear.applyAngularImpulse(-0.26 * CGFloat(delta * 60))
+                rear.applyAngularImpulse(-260 * step)
             }
         }
         if brake {
             // Brake first, reverse only once nearly stopped.
-            if body.velocity.dx > 12 {
-                rear.angularVelocity *= 0.86
-                body.velocity.dx *= 0.965
-            } else if rear.angularVelocity < maxSpin * 0.35 {
-                rear.applyAngularImpulse(0.12 * CGFloat(delta * 60))
+            if body.velocity.dx > 20 {
+                rear.angularVelocity *= 0.88
+                body.velocity.dx *= 0.96
+            } else if rear.angularVelocity < maxSpin * 0.4 {
+                rear.applyAngularImpulse(120 * step)
             }
         }
         if !throttle && !brake {
-            rear.angularVelocity *= 0.995
+            rear.angularVelocity *= 0.99
         }
 
         // Leaning: strong in the air for rotation control, gentler on the
         // ground where it mostly shifts weight over a wheel.
-        let leanPower: CGFloat = isAirborne ? 0.055 : 0.032
-        if leanBack { body.applyAngularImpulse(leanPower * CGFloat(delta * 60)) }
-        if leanForward { body.applyAngularImpulse(-leanPower * CGFloat(delta * 60)) }
+        let leanPower: CGFloat = isAirborne ? 45 : 20
+        if leanBack { body.applyAngularImpulse(leanPower * step) }
+        if leanForward { body.applyAngularImpulse(-leanPower * step) }
 
         // Air drag keeps top speed finite and landings sane.
         body.velocity.dx *= 0.9995
