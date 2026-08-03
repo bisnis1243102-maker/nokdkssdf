@@ -317,7 +317,6 @@ enum Renderers {
 
         let w = Double(canvas.width), h = Double(canvas.height)
         let escape = 256.0
-        let logEscape = log(log(escape))
 
         for py in 0..<canvas.height {
             let v = (Double(py) / h - 0.5) * 3.0 / zoom + panY

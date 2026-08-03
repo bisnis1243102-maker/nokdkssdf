@@ -125,10 +125,11 @@ final class GalleryStore: ObservableObject {
         gallery = saved
         // Re-render thumbnails in the background so the grid fills in smoothly
         // rather than blocking launch.
-        queue.async { [weak self] in
-            for recipe in saved {
-                let image = ArtGenerator.render(recipe, size: 300)
-                Task { @MainActor in self?.thumbnails[recipe.id] = image }
+        queue.async {
+            let rendered = saved.map { ($0.id, ArtGenerator.render($0, size: 300)) }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                for (id, image) in rendered { self.thumbnails[id] = image }
             }
         }
     }
