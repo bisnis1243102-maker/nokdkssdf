@@ -8,26 +8,35 @@ struct RaceView: View {
     @ObservedObject var store: GameStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var scene: GameScene?
+    /// Built once, in init.
+    ///
+    /// This used to be created inside a GeometryReader, which was a real bug:
+    /// `ignoresSafeArea` makes the SpriteView bigger than the geometry, and
+    /// `resizeFill` then rewrites `scene.size` to the view's size, so the
+    /// "have I already got a scene this size?" check never matched. With the
+    /// HUD re-rendering sixty times a second, that built a fresh scene every
+    /// frame and the controls ended up writing to a scene nobody was watching.
+    @State private var scene: GameScene
     @State private var progress: Double = 0
     @State private var elapsed: TimeInterval = 0
     @State private var speed: Double = 0
     @State private var outcome: Outcome?
-    /// Bumped to rebuild the scene from scratch on retry.
-    @State private var attempt = 0
 
     private enum Outcome: Equatable {
         case crashed
         case finished(time: TimeInterval, isBest: Bool)
     }
 
+    init(track: Track, store: GameStore) {
+        self.track = track
+        self.store = store
+        _scene = State(initialValue: GameScene(track: track, size: UIScreen.main.bounds.size))
+    }
+
     var body: some View {
         ZStack {
-            GeometryReader { geometry in
-                SpriteView(scene: makeScene(size: geometry.size))
-                    .ignoresSafeArea()
-                    .id(attempt)
-            }
+            SpriteView(scene: scene)
+                .ignoresSafeArea()
 
             VStack {
                 hud
@@ -41,29 +50,26 @@ struct RaceView: View {
         }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
+        .onAppear { attachCallbacks(to: scene) }
     }
 
-    private func makeScene(size: CGSize) -> GameScene {
-        if let scene, scene.size == size { return scene }
-        let fresh = GameScene(track: track, size: size)
-        fresh.onTick = { progress, elapsed, speed in
+    private func attachCallbacks(to scene: GameScene) {
+        scene.onTick = { progress, elapsed, speed in
             self.progress = progress
             self.elapsed = elapsed
             self.speed = speed
         }
-        fresh.onCrash = {
+        scene.onCrash = {
             guard outcome == nil else { return }
             withAnimation(.spring(response: 0.35)) { outcome = .crashed }
         }
-        fresh.onFinish = { time in
+        scene.onFinish = { time in
             guard outcome == nil else { return }
             let isBest = store.record(time: time, for: track)
             withAnimation(.spring(response: 0.35)) {
                 outcome = .finished(time: time, isBest: isBest)
             }
         }
-        DispatchQueue.main.async { self.scene = fresh }
-        return fresh
     }
 
     // MARK: HUD
@@ -119,10 +125,10 @@ struct RaceView: View {
         HStack(alignment: .bottom) {
             VStack(spacing: 12) {
                 holdButton(icon: "arrow.counterclockwise", label: "LEAN BACK", tint: .white) { down in
-                    scene?.leanBack = down
+                    scene.leanInput = down ? 1 : 0
                 }
                 holdButton(icon: "arrow.clockwise", label: "LEAN FWD", tint: .white) { down in
-                    scene?.leanForward = down
+                    scene.leanInput = down ? -1 : 0
                 }
             }
 
@@ -130,10 +136,10 @@ struct RaceView: View {
 
             HStack(spacing: 14) {
                 holdButton(icon: "backward.fill", label: "BRAKE", tint: .red.opacity(0.9)) { down in
-                    scene?.brake = down
+                    scene.brake = down
                 }
                 holdButton(icon: "bolt.fill", label: "GAS", tint: Palette.accent, large: true) { down in
-                    scene?.throttle = down
+                    scene.throttle = down
                 }
             }
         }
@@ -226,12 +232,15 @@ struct RaceView: View {
         }
     }
 
+    /// Replaces the scene wholesale, which is the simplest way to guarantee a
+    /// run starts from an identical state every time.
     private func retry() {
-        scene = nil
         progress = 0
         elapsed = 0
         speed = 0
         outcome = nil
-        attempt += 1
+        let fresh = GameScene(track: track, size: scene.size)
+        attachCallbacks(to: fresh)
+        scene = fresh
     }
 }

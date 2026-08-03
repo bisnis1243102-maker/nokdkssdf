@@ -20,8 +20,8 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     // Held down by the on-screen controls.
     var throttle = false
     var brake = false
-    var leanBack = false
-    var leanForward = false
+    /// -1 leans the rider forward, +1 leans back, 0 is neutral.
+    var leanInput: CGFloat = 0
 
     private let track: Track
     private lazy var noise = TrackNoise(seed: track.seed)
@@ -298,8 +298,9 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         // Leaning: strong in the air for rotation control, gentler on the
         // ground where it mostly shifts weight over a wheel.
         let leanPower: CGFloat = isAirborne ? 45 : 20
-        if leanBack { body.applyAngularImpulse(leanPower * step) }
-        if leanForward { body.applyAngularImpulse(-leanPower * step) }
+        if leanInput != 0 {
+            body.applyAngularImpulse(leanPower * leanInput * step)
+        }
 
         // Air drag keeps top speed finite and landings sane.
         body.velocity.dx *= 0.9995
@@ -309,15 +310,8 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     /// without it the lean buttons feel like they do nothing at low speed.
     private func updateRiderPose(delta: TimeInterval) {
         guard let rider = riderNode else { return }
-        var targetX: CGFloat = -6
-        var targetRotation: CGFloat = 0
-        if leanBack {
-            targetX = -13
-            targetRotation = 0.20
-        } else if leanForward {
-            targetX = 1
-            targetRotation = -0.20
-        }
+        let targetX: CGFloat = -6 + leanInput * -7
+        let targetRotation: CGFloat = leanInput * 0.20
         let ease = CGFloat(min(delta * 9, 1))
         rider.position.x += (targetX - rider.position.x) * ease
         rider.zRotation += (targetRotation - rider.zRotation) * ease
