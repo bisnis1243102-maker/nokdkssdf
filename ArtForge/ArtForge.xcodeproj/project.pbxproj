@@ -16,7 +16,7 @@
 		4D0000000000000000000007 /* GalleryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000007 /* GalleryStore.swift */; };
 		4D0000000000000000000008 /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000008 /* Scene.swift */; };
 		4D0000000000000000000009 /* Diffusion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000009 /* Diffusion.swift */; };
-		4D0000000000000000000010 /* DiffusionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000010 /* DiffusionView.swift */; };
+		4D0000000000000000000010 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000010 /* ChatView.swift */; };
 		4D0000000000000000000011 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000011 /* RootView.swift */; };
 		4D0000000000000000009999 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = 4F0000000000000000000001 /* StableDiffusion */; };
 /* End PBXBuildFile section */
@@ -32,7 +32,7 @@
 		4C0000000000000000000007 /* GalleryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryStore.swift; sourceTree = "<group>"; };
 		4C0000000000000000000008 /* Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
 		4C0000000000000000000009 /* Diffusion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diffusion.swift; sourceTree = "<group>"; };
-		4C0000000000000000000010 /* DiffusionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffusionView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000010 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		4C0000000000000000000011 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -67,7 +67,7 @@
 				4C0000000000000000000007 /* GalleryStore.swift */,
 				4C0000000000000000000008 /* Scene.swift */,
 				4C0000000000000000000009 /* Diffusion.swift */,
-				4C0000000000000000000010 /* DiffusionView.swift */,
+				4C0000000000000000000010 /* ChatView.swift */,
 				4C0000000000000000000011 /* RootView.swift */,
 				4C0000000000000000000004 /* Assets.xcassets */,
 			);
@@ -161,7 +161,7 @@
 				4D0000000000000000000002 /* ContentView.swift in Sources */,
 				4D0000000000000000000001 /* ArtForgeApp.swift in Sources */,
 				4D0000000000000000000009 /* Diffusion.swift in Sources */,
-				4D0000000000000000000010 /* DiffusionView.swift in Sources */,
+				4D0000000000000000000010 /* ChatView.swift in Sources */,
 				4D0000000000000000000011 /* RootView.swift in Sources */,
 				4D0000000000000000000008 /* Scene.swift in Sources */,
 				4D0000000000000000000005 /* Renderers.swift in Sources */,

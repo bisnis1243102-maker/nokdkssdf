@@ -9,8 +9,8 @@ struct RootView: View {
             ContentView()
                 .tabItem { Label("Studio", systemImage: "paintbrush.pointed") }
 
-            NavigationStack { DiffusionView() }
-                .tabItem { Label("AI", systemImage: "sparkles") }
+            NavigationStack { ChatView() }
+                .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
         }
         .tint(Theme.accent)
     }

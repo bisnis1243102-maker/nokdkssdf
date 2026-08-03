@@ -25,11 +25,10 @@ final class DiffusionEngine: ObservableObject {
     }
 
     @Published private(set) var state: State = .missingModel
-    @Published private(set) var image: UIImage?
 
     /// Where an imported model lives. Everything the pipeline needs sits in
     /// this one folder: TextEncoder, Unet, VAEDecoder, the tokenizer files.
-    static var modelDirectory: URL {
+    nonisolated static var modelDirectory: URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return docs.appendingPathComponent("StableDiffusionModel", isDirectory: true)
     }
@@ -37,14 +36,14 @@ final class DiffusionEngine: ObservableObject {
     /// A model counts as installed only if the pieces the pipeline actually
     /// loads are present — a half-copied folder should read as missing, not
     /// blow up at generation time.
-    static func modelInstalled() -> Bool {
+    nonisolated static func modelInstalled() -> Bool {
         let fm = FileManager.default
         let required = ["TextEncoder.mlmodelc", "Unet.mlmodelc", "VAEDecoder.mlmodelc",
                         "merges.txt", "vocab.json"]
         return required.allSatisfy { fm.fileExists(atPath: modelDirectory.appendingPathComponent($0).path) }
     }
 
-    static func installedModelSize() -> String? {
+    nonisolated static func installedModelSize() -> String? {
         guard modelInstalled(),
               let e = FileManager.default.enumerator(at: modelDirectory,
                                                      includingPropertiesForKeys: [.fileSizeKey]) else { return nil }
@@ -80,72 +79,79 @@ final class DiffusionEngine: ObservableObject {
 
     // MARK: - Generation
 
-    func generate(prompt: String, negativePrompt: String, steps: Int, guidance: Float, seed: UInt32) {
-        guard Self.modelInstalled() else { state = .missingModel; return }
-        guard state != .loading else { return }
-        if case .generating = state { return }
+    /// Generates one image. Progress lands on `state` while this runs.
+    func generateImage(prompt: String, negativePrompt: String,
+                       steps: Int, guidance: Float, seed: UInt32) async throws -> UIImage {
+        guard Self.modelInstalled() else {
+            throw NSError(domain: "ArtForge", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "No model installed yet."
+            ])
+        }
 
         state = .loading
         let modelURL = Self.modelDirectory
         let existing = pipeline
 
-        queue.async { [weak self] in
-            do {
-                let pipe: StableDiffusionPipeline
-                if let existing {
-                    pipe = existing
-                } else {
-                    let configuration = MLModelConfiguration()
-                    // The Neural Engine is both the fastest and the coolest
-                    // running option for these models on A14 and later.
-                    configuration.computeUnits = .cpuAndNeuralEngine
-                    pipe = try StableDiffusionPipeline(resourcesAt: modelURL,
-                                                       controlNet: [],
-                                                       configuration: configuration,
-                                                       disableSafety: false,
-                                                       reduceMemory: true)
-                    try pipe.loadResources()
-                }
+        do {
+            let outcome: (CGImage?, StableDiffusionPipeline) = try await withCheckedThrowingContinuation { continuation in
+                queue.async {
+                    do {
+                        let pipe: StableDiffusionPipeline
+                        if let existing {
+                            pipe = existing
+                        } else {
+                            let configuration = MLModelConfiguration()
+                            // The Neural Engine is both the fastest and the
+                            // coolest running option on A14 and later.
+                            configuration.computeUnits = .cpuAndNeuralEngine
+                            pipe = try StableDiffusionPipeline(resourcesAt: modelURL,
+                                                               controlNet: [],
+                                                               configuration: configuration,
+                                                               disableSafety: false,
+                                                               reduceMemory: true)
+                            try pipe.loadResources()
+                        }
 
-                var config = StableDiffusionPipeline.Configuration(prompt: prompt)
-                config.negativePrompt = negativePrompt
-                config.stepCount = steps
-                config.seed = seed
-                config.guidanceScale = guidance
-                config.disableSafety = false
-                config.schedulerType = .dpmSolverMultistepScheduler
+                        var config = StableDiffusionPipeline.Configuration(prompt: prompt)
+                        config.negativePrompt = negativePrompt
+                        config.stepCount = steps
+                        config.seed = seed
+                        config.guidanceScale = guidance
+                        config.disableSafety = false
+                        config.schedulerType = .dpmSolverMultistepScheduler
 
-                let images = try pipe.generateImages(configuration: config) { progress in
-                    Task { @MainActor [weak self] in
-                        self?.pipeline = pipe
-                        self?.state = .generating(step: progress.step, total: progress.stepCount)
+                        let images = try pipe.generateImages(configuration: config) { progress in
+                            Task { @MainActor [weak self] in
+                                self?.state = .generating(step: progress.step, total: progress.stepCount)
+                            }
+                            return true
+                        }
+                        continuation.resume(returning: (images.compactMap { $0 }.first, pipe))
+                    } catch {
+                        continuation.resume(throwing: error)
                     }
-                    return true
-                }
-
-                let result = images.compactMap { $0 }.first
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    self.pipeline = pipe
-                    if let cg = result {
-                        self.image = UIImage(cgImage: cg)
-                        self.state = .idle
-                    } else {
-                        // A nil image is what the pipeline returns when the
-                        // safety checker rejects the result.
-                        self.state = .failed("The result was filtered. Try a different prompt.")
-                    }
-                }
-            } catch {
-                Task { @MainActor [weak self] in
-                    self?.pipeline = nil
-                    self?.state = .failed(Self.describe(error))
                 }
             }
+
+            pipeline = outcome.1
+            state = .idle
+            guard let cg = outcome.0 else {
+                // A nil image is what the pipeline returns when the safety
+                // checker rejects the result.
+                throw NSError(domain: "ArtForge", code: 3, userInfo: [
+                    NSLocalizedDescriptionKey: "That result was filtered. Try describing it differently."
+                ])
+            }
+            return UIImage(cgImage: cg)
+        } catch {
+            pipeline = nil
+            let message = Self.describe(error)
+            state = .failed(message)
+            throw NSError(domain: "ArtForge", code: 4, userInfo: [NSLocalizedDescriptionKey: message])
         }
     }
 
-    private static func describe(_ error: Error) -> String {
+    nonisolated private static func describe(_ error: Error) -> String {
         let text = error.localizedDescription
         if text.contains("memory") || text.contains("resource") {
             return "Ran out of memory loading the model. A palettized (6-bit) model uses much less."
@@ -206,7 +212,7 @@ final class DiffusionEngine: ObservableObject {
         progress("Done")
     }
 
-    static func deleteModel() throws {
+    nonisolated static func deleteModel() throws {
         if FileManager.default.fileExists(atPath: modelDirectory.path) {
             try FileManager.default.removeItem(at: modelDirectory)
         }
