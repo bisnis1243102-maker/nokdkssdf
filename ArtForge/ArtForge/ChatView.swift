@@ -39,7 +39,7 @@ struct ChatView: View {
     @State private var showSetupHelp = false
     @State private var importStatus: String?
     @State private var importError: String?
-    @StateObject private var downloader = ModelDownloader()
+    @ObservedObject private var downloader = ModelDownloader.shared
 
     private let suggestions = [
         "a red fox in a snowy forest, cinematic",
@@ -419,8 +419,8 @@ struct ChatView: View {
                     downloader.start(ModelOption.standard)
                 } label: {
                     HStack(spacing: 9) {
-                        Image(systemName: "arrow.down.circle.fill")
-                        Text("Download model")
+                        Image(systemName: downloader.canResume ? "play.circle.fill" : "arrow.down.circle.fill")
+                        Text(downloader.canResume ? "Resume download" : "Download model")
                         Text(ModelOption.standard.sizeText)
                             .font(.caption2)
                             .opacity(0.75)
@@ -433,7 +433,14 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
 
-                Text("\(ModelOption.standard.title) · Wi-Fi only · keep the app open while it runs.")
+                Toggle(isOn: $downloader.allowCellular) {
+                    Text("Allow cellular data")
+                        .font(.caption)
+                        .foregroundColor(Theme.secondaryText)
+                }
+                .tint(Theme.accent)
+
+                Text("\(ModelOption.standard.title). Keeps downloading if you leave the app or lock the screen.")
                     .font(.caption2)
                     .foregroundColor(Theme.secondaryText)
 
@@ -485,11 +492,24 @@ struct ChatView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 if downloader.isBusy {
-                    Button("Cancel") { downloader.cancel() }
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.red.opacity(0.85))
+                    if case .unpacking = downloader.phase {
+                        EmptyView()
+                    } else {
+                        Button("Pause") { downloader.pause() }
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(Theme.accent)
+                        Button("Cancel") { downloader.cancel() }
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.red.opacity(0.85))
+                    }
                 } else if isDownloadFailed {
-                    Button("Try again") { downloader.cancel() }
+                    Button(downloader.canResume ? "Resume" : "Try again") {
+                        if downloader.canResume {
+                            downloader.start(ModelOption.standard)
+                        } else {
+                            downloader.cancel()
+                        }
+                    }
                         .font(.caption.weight(.semibold))
                         .foregroundColor(Theme.accent)
                 }
@@ -504,7 +524,7 @@ struct ChatView: View {
                     step(1, "Tap Download model",
                          "The app downloads it straight to your phone from Apple's public Core ML model release. No computer, no account, no key — it is an ordinary file download.")
                     step(2, "Wait for the download",
-                         "1.1–1.6 GB over Wi-Fi. Keep ArtForge open while it runs; you can cancel any time and start again later.")
+                         "About 1.1 GB. It continues while the app is in the background or the screen is locked, and you can pause and resume without losing progress.")
                     step(3, "Unpacking",
                          "The zip is expanded and installed automatically. You need roughly 3 GB free while this happens; about half is freed again at the end.")
                     step(4, "Chat",

@@ -29,25 +29,71 @@ struct ModelOption: Identifiable, Hashable {
 
 /// Downloads a model zip straight to the phone and unpacks it into place, so
 /// no computer is needed anywhere in the process.
+///
+/// A background `URLSession` does the transfer, which means it keeps running
+/// when the app is backgrounded or the screen locks — a gigabyte takes long
+/// enough that requiring the app stay open in the foreground was the single
+/// biggest thing making installation feel slow.
 @MainActor
 final class ModelDownloader: NSObject, ObservableObject {
 
+    /// One instance for the whole app: a background session is tied to its
+    /// identifier, and creating a second with the same one traps.
+    static let shared = ModelDownloader()
+
     enum Phase: Equatable {
         case idle
+        case waitingForNetwork
         case downloading(received: Int64, total: Int64)
-        case unpacking
+        case unpacking(fraction: Double)
         case finished
         case failed(String)
     }
 
     @Published private(set) var phase: Phase = .idle
+    /// Bytes per second, smoothed. Nil until there is enough to measure.
+    @Published private(set) var speed: Double?
+    /// Set when a download is interrupted and can be picked up where it left off.
+    @Published private(set) var canResume = false
 
-    private var session: URLSession?
+    /// Cellular is allowed only if the user opts in — this is over a gigabyte.
+    @Published var allowCellular = false
+
+    private var resumeData: Data?
     private var task: URLSessionDownloadTask?
+    private var lastSampleTime: Date?
+    private var lastSampleBytes: Int64 = 0
+
+    private lazy var session: URLSession = {
+        let configuration = URLSessionConfiguration.background(withIdentifier: "com.example.ArtForge.modelDownload")
+        // Discretionary lets iOS defer the transfer to "a good time", which can
+        // mean not starting for ages. The user just tapped a button; go now.
+        configuration.isDiscretionary = false
+        configuration.sessionSendsLaunchEvents = true
+        configuration.allowsCellularAccess = true   // gated per request instead
+        configuration.timeoutIntervalForResource = 60 * 60 * 6
+        return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    }()
+
+    private override init() {
+        super.init()
+        // A transfer may have kept running while the app was away; adopt it.
+        Task { await adoptExistingTask() }
+    }
+
+    private func adoptExistingTask() async {
+        let tasks = await session.tasks.2
+        if let existing = tasks.first {
+            task = existing
+            phase = .downloading(received: existing.countOfBytesReceived,
+                                 total: max(existing.countOfBytesExpectedToReceive,
+                                            ModelOption.standard.approximateBytes))
+        }
+    }
 
     var isBusy: Bool {
         switch phase {
-        case .downloading, .unpacking: return true
+        case .downloading, .unpacking, .waitingForNetwork: return true
         default: return false
         }
     }
@@ -55,29 +101,57 @@ final class ModelDownloader: NSObject, ObservableObject {
     /// Human-readable one-liner for the UI.
     var statusText: String {
         switch phase {
-        case .idle: return ""
+        case .idle:
+            return ""
+        case .waitingForNetwork:
+            return allowCellular ? "Waiting for a connection…" : "Waiting for Wi-Fi…"
         case .downloading(let received, let total):
             let got = ByteCountFormatter.string(fromByteCount: received, countStyle: .file)
             guard total > 0 else { return "Downloading \(got)…" }
             let all = ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
-            return "Downloading \(got) of \(all)"
-        case .unpacking: return "Unpacking — this takes a minute…"
-        case .finished: return "Installed"
-        case .failed(let message): return message
+            var text = "\(got) of \(all)"
+            if let speed, speed > 0 {
+                let rate = ByteCountFormatter.string(fromByteCount: Int64(speed), countStyle: .file)
+                text += " · \(rate)/s"
+                let remaining = Double(total - received) / speed
+                if remaining.isFinite, remaining > 0, remaining < 60 * 60 * 6 {
+                    text += " · \(Self.timeText(remaining)) left"
+                }
+            }
+            return text
+        case .unpacking(let fraction):
+            return fraction > 0 ? "Unpacking \(Int(fraction * 100))%" : "Unpacking…"
+        case .finished:
+            return "Installed"
+        case .failed(let message):
+            return message
         }
     }
 
-    var fraction: Double? {
-        if case .downloading(let received, let total) = phase, total > 0 {
-            return Double(received) / Double(total)
-        }
-        return nil
+    private static func timeText(_ seconds: Double) -> String {
+        if seconds < 60 { return "\(Int(seconds))s" }
+        let minutes = Int(seconds / 60)
+        if minutes < 60 { return "\(minutes) min" }
+        return String(format: "%.1f hr", seconds / 3600)
     }
+
+    var fraction: Double? {
+        switch phase {
+        case .downloading(let received, let total) where total > 0:
+            return Double(received) / Double(total)
+        case .unpacking(let fraction) where fraction > 0:
+            return fraction
+        default:
+            return nil
+        }
+    }
+
+    // MARK: - Control
 
     func start(_ option: ModelOption) {
         guard !isBusy else { return }
 
-        // A model needs room for the zip and the unpacked copy at the same time.
+        // A model needs room for the zip and the unpacked copy at once.
         if let free = Self.availableBytes(), free < option.approximateBytes * 5 / 2 {
             let needed = ByteCountFormatter.string(fromByteCount: option.approximateBytes * 5 / 2, countStyle: .file)
             let have = ByteCountFormatter.string(fromByteCount: free, countStyle: .file)
@@ -85,25 +159,45 @@ final class ModelDownloader: NSObject, ObservableObject {
             return
         }
 
+        speed = nil
+        lastSampleTime = nil
+        lastSampleBytes = 0
         phase = .downloading(received: 0, total: option.approximateBytes)
 
-        let configuration = URLSessionConfiguration.default
-        configuration.allowsCellularAccess = false      // this is a gigabyte-plus
-        configuration.waitsForConnectivity = true
-        configuration.timeoutIntervalForResource = 60 * 60
-
-        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
-        self.session = session
-        let task = session.downloadTask(with: option.url)
+        let task: URLSessionDownloadTask
+        if let resumeData {
+            task = session.downloadTask(withResumeData: resumeData)
+            self.resumeData = nil
+        } else {
+            var request = URLRequest(url: option.url)
+            request.allowsCellularAccess = allowCellular
+            task = session.downloadTask(with: request)
+        }
+        task.countOfBytesClientExpectsToReceive = option.approximateBytes
         self.task = task
+        canResume = false
         task.resume()
+    }
+
+    /// Stops but keeps what has been fetched, so Resume picks up mid-file.
+    func pause() {
+        task?.cancel { [weak self] data in
+            Task { @MainActor in
+                guard let self else { return }
+                self.resumeData = data
+                self.canResume = data != nil
+                self.task = nil
+                self.phase = .idle
+            }
+        }
     }
 
     func cancel() {
         task?.cancel()
         task = nil
-        session?.invalidateAndCancel()
-        session = nil
+        resumeData = nil
+        canResume = false
+        speed = nil
         phase = .idle
     }
 
@@ -113,24 +207,58 @@ final class ModelDownloader: NSObject, ObservableObject {
             .volumeAvailableCapacityForImportantUsage
     }
 
+    fileprivate func record(received: Int64, total: Int64) {
+        let now = Date()
+        if let last = lastSampleTime {
+            let elapsed = now.timeIntervalSince(last)
+            if elapsed > 0.5 {
+                let sample = Double(received - lastSampleBytes) / elapsed
+                // Exponential smoothing; raw samples jump around too much to read.
+                speed = speed.map { $0 * 0.7 + sample * 0.3 } ?? sample
+                lastSampleTime = now
+                lastSampleBytes = received
+            }
+        } else {
+            lastSampleTime = now
+            lastSampleBytes = received
+        }
+        phase = .downloading(received: received, total: total)
+    }
+
+    // MARK: - Unpacking
+
     fileprivate func finish(downloadedTo temporaryURL: URL) {
-        phase = .unpacking
+        phase = .unpacking(fraction: 0)
+        canResume = false
         let staging = FileManager.default.temporaryDirectory
             .appendingPathComponent("model-unpack-\(UUID().uuidString)", isDirectory: true)
+        let progress = Progress(totalUnitCount: 1)
+
+        // Poll the unzip's progress so the UI has something honest to show
+        // during the slowest part of the install.
+        let ticker = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                if case .unpacking = self.phase {
+                    self.phase = .unpacking(fraction: progress.fractionCompleted)
+                } else {
+                    return
+                }
+            }
+        }
 
         Task.detached(priority: .userInitiated) {
             do {
                 let fm = FileManager.default
                 try fm.createDirectory(at: staging, withIntermediateDirectories: true)
 
-                let archive = staging.appendingPathComponent("model.zip")
-                try fm.moveItem(at: temporaryURL, to: archive)
-
                 let unpacked = staging.appendingPathComponent("unpacked", isDirectory: true)
                 try fm.createDirectory(at: unpacked, withIntermediateDirectories: true)
-                try fm.unzipItem(at: archive, to: unpacked)
-                // The zip is a big chunk of disk; drop it before copying.
-                try? fm.removeItem(at: archive)
+                // skipCRC32 avoids a second full pass over a gigabyte of data
+                // that HTTPS has already checksummed in transit.
+                try fm.unzipItem(at: temporaryURL, to: unpacked,
+                                 skipCRC32: true, progress: progress)
+                try? fm.removeItem(at: temporaryURL)
 
                 guard let root = Self.findModelRoot(in: unpacked) else {
                     throw NSError(domain: "ArtForge", code: 10, userInfo: [
@@ -142,6 +270,7 @@ final class ModelDownloader: NSObject, ObservableObject {
                 if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
                 try fm.createDirectory(at: destination.deletingLastPathComponent(),
                                        withIntermediateDirectories: true)
+                // Same volume, so this is a rename rather than a gigabyte copy.
                 try fm.moveItem(at: root, to: destination)
 
                 var values = URLResourceValues()
@@ -151,10 +280,17 @@ final class ModelDownloader: NSObject, ObservableObject {
 
                 try? fm.removeItem(at: staging)
 
-                await MainActor.run { self.phase = .finished }
+                await MainActor.run {
+                    ticker.cancel()
+                    self.phase = .finished
+                }
             } catch {
                 try? FileManager.default.removeItem(at: staging)
-                await MainActor.run { self.phase = .failed(error.localizedDescription) }
+                try? FileManager.default.removeItem(at: temporaryURL)
+                await MainActor.run {
+                    ticker.cancel()
+                    self.phase = .failed(error.localizedDescription)
+                }
             }
         }
     }
@@ -187,7 +323,10 @@ extension ModelDownloader: URLSessionDownloadDelegate {
                                 totalBytesWritten: Int64,
                                 totalBytesExpectedToWrite: Int64) {
         Task { @MainActor in
-            self.phase = .downloading(received: totalBytesWritten, total: totalBytesExpectedToWrite)
+            self.record(received: totalBytesWritten,
+                        total: totalBytesExpectedToWrite > 0
+                            ? totalBytesExpectedToWrite
+                            : ModelOption.standard.approximateBytes)
         }
     }
 
@@ -207,14 +346,32 @@ extension ModelDownloader: URLSessionDownloadDelegate {
         Task { @MainActor in self.finish(downloadedTo: holding) }
     }
 
+    nonisolated func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {
+        Task { @MainActor in
+            if case .downloading(let received, _) = self.phase, received == 0 {
+                self.phase = .waitingForNetwork
+            }
+        }
+    }
+
     nonisolated func urlSession(_ session: URLSession,
                                 task: URLSessionTask,
                                 didCompleteWithError error: Error?) {
         guard let error else { return }
-        let cancelled = (error as NSError).code == NSURLErrorCancelled
+        let nsError = error as NSError
+        let cancelled = nsError.code == NSURLErrorCancelled
+        let resume = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
         Task { @MainActor in
-            if !cancelled, case .downloading = self.phase {
+            if let resume {
+                self.resumeData = resume
+                self.canResume = true
+            }
+            guard !cancelled else { return }
+            switch self.phase {
+            case .downloading, .waitingForNetwork:
                 self.phase = .failed(error.localizedDescription)
+            default:
+                break
             }
         }
     }
