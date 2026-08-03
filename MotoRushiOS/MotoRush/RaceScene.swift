@@ -613,11 +613,12 @@ final class BikeNode: SKNode {
         addChild(shadow)
 
         for wheelNode in [rearWheel, frontWheel] {
-            let tyre = SKShapeNode(circleOfRadius: bike.wheelR * PPM)
+            let wheelRadius = CGFloat(bike.wheelR) * PPM
+            let tyre = SKShapeNode(circleOfRadius: wheelRadius)
             tyre.fillColor = SKColor(red: 0.09, green: 0.10, blue: 0.12, alpha: 1)
             tyre.strokeColor = .clear
             wheelNode.addChild(tyre)
-            let rim = SKShapeNode(circleOfRadius: bike.wheelR * PPM * 0.62)
+            let rim = SKShapeNode(circleOfRadius: wheelRadius * 0.62)
             rim.fillColor = .clear
             rim.strokeColor = SKColor(white: 0.82, alpha: 1)
             rim.lineWidth = 2.5
@@ -627,8 +628,8 @@ final class BikeNode: SKNode {
             for i in 0..<6 {
                 let a = CGFloat(i) / 6 * .pi * 2
                 p.move(to: .zero)
-                p.addLine(to: CGPoint(x: cos(a) * bike.wheelR * PPM * 0.6,
-                                      y: sin(a) * bike.wheelR * PPM * 0.6))
+                p.addLine(to: CGPoint(x: cos(a) * wheelRadius * 0.6,
+                                      y: sin(a) * wheelRadius * 0.6))
             }
             spokes.path = p
             spokes.strokeColor = SKColor(white: 0.7, alpha: 0.9)
