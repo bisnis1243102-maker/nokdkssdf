@@ -346,7 +346,8 @@ final class Race3DController: NSObject, SCNSceneRendererDelegate {
             }
             let z: Float = prop.back ? -9.5 : 8.2
             node.position = SCNVector3(Float(prop.x), Float(track.height(at: prop.x)) - 1.2, z)
-            node.scale = SCNVector3(repeating: Float(prop.scale))
+            let sc = Float(prop.scale)
+            node.scale = SCNVector3(sc, sc, sc)
             node.eulerAngles.y = Float.random(in: -0.4...0.4)
             node.castsShadow = true
             scene.rootNode.addChildNode(node)
