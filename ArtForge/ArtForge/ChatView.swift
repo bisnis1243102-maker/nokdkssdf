@@ -113,10 +113,10 @@ struct ChatView: View {
                 .padding(.top, 12)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: messages) { _ in
+            .onChange(of: messages) {
                 withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
-            .onChange(of: engine.state) { _ in
+            .onChange(of: engine.state) {
                 updateWorkingMessage()
             }
         }
@@ -464,7 +464,7 @@ struct ChatView: View {
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 16).fill(Theme.card))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.hairline, lineWidth: 1))
-        .onChange(of: downloader.phase) { phase in
+        .onChange(of: downloader.phase) { _, phase in
             if phase == .finished {
                 engine.refreshModelState()
                 messages.append(ChatMessage(role: .assistant,

@@ -181,8 +181,8 @@ final class ModelDownloader: NSObject, ObservableObject {
 
     /// Stops but keeps what has been fetched, so Resume picks up mid-file.
     func pause() {
-        task?.cancel { [weak self] data in
-            Task { @MainActor in
+        task?.cancel { data in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.resumeData = data
                 self.canResume = data != nil
