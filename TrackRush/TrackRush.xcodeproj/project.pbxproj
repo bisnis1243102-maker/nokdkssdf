@@ -14,6 +14,7 @@
 		4D0000000000000000000005 /* Track.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000005 /* Track.swift */; };
 		4D0000000000000000000006 /* GameStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000006 /* GameStore.swift */; };
 		4D0000000000000000000007 /* RaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000007 /* RaceView.swift */; };
+		4D0000000000000000000008 /* Bike.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000008 /* Bike.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,7 @@
 		4C0000000000000000000005 /* Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Track.swift; sourceTree = "<group>"; };
 		4C0000000000000000000006 /* GameStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameStore.swift; sourceTree = "<group>"; };
 		4C0000000000000000000007 /* RaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000008 /* Bike.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bike.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,6 +57,7 @@
 				4C0000000000000000000005 /* Track.swift */,
 				4C0000000000000000000006 /* GameStore.swift */,
 				4C0000000000000000000007 /* RaceView.swift */,
+				4C0000000000000000000008 /* Bike.swift */,
 				4C0000000000000000000004 /* Assets.xcassets */,
 			);
 			path = TrackRush;
@@ -140,6 +143,7 @@
 				4D0000000000000000000003 /* GameScene.swift in Sources */,
 				4D0000000000000000000002 /* MenuView.swift in Sources */,
 				4D0000000000000000000001 /* TrackRushApp.swift in Sources */,
+				4D0000000000000000000008 /* Bike.swift in Sources */,
 				4D0000000000000000000005 /* Track.swift in Sources */,
 				4D0000000000000000000006 /* GameStore.swift in Sources */,
 				4D0000000000000000000007 /* RaceView.swift in Sources */,

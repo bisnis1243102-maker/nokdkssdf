@@ -29,6 +29,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     private var chassis: SKNode!
     private var rearWheel: SKNode!
     private var frontWheel: SKNode!
+    private var riderNode: SKNode?
     private let cameraNode = SKCameraNode()
 
     private var startTime: TimeInterval = 0
@@ -168,33 +169,28 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     private func buildBike(at position: CGPoint) {
         let wheelRadius: CGFloat = 17
         let wheelBase: CGFloat = 66
+        let axleDrop: CGFloat = -14
 
-        // Chassis: a low, wide body. Keeping the centre of mass low and slightly
-        // rearward is what makes the bike want to wheelie rather than endo.
-        let frame = SKShapeNode(rectOf: CGSize(width: 62, height: 16), cornerRadius: 7)
-        frame.fillColor = SKColor(red: 0.86, green: 0.24, blue: 0.20, alpha: 1)
-        frame.strokeColor = SKColor(white: 0.1, alpha: 0.85)
-        frame.lineWidth = 2
+        // The visible machine hangs off the chassis body, drawn to line up with
+        // where the wheels physically are.
+        let frame = SKNode()
+        frame.addChild(BikeArt.body(rearAxle: CGPoint(x: -wheelBase / 2, y: axleDrop),
+                                    frontAxle: CGPoint(x: wheelBase / 2, y: axleDrop)))
 
-        let seat = SKShapeNode(rectOf: CGSize(width: 30, height: 9), cornerRadius: 4)
-        seat.fillColor = SKColor(white: 0.14, alpha: 1)
-        seat.strokeColor = .clear
-        seat.position = CGPoint(x: -10, y: 12)
-        frame.addChild(seat)
-
-        // The rider is decoration plus the crash sensor.
-        let rider = SKShapeNode(circleOfRadius: 13)
-        rider.fillColor = SKColor(red: 0.16, green: 0.20, blue: 0.30, alpha: 1)
-        rider.strokeColor = SKColor(white: 0.95, alpha: 0.9)
-        rider.lineWidth = 2
-        rider.position = CGPoint(x: -4, y: 30)
+        let rider = BikeArt.rider()
+        rider.position = CGPoint(x: -6, y: 6)
         frame.addChild(rider)
+        riderNode = rider
 
         frame.position = position
         frame.zPosition = 10
         addChild(frame)
 
-        let body = SKPhysicsBody(rectangleOf: CGSize(width: 62, height: 18))
+        // The collision shape is a plain box around the machine — the rider's
+        // head sticking out of it is deliberate, so a scraped helmet is a
+        // crash but a low-slung frame is not.
+        let body = SKPhysicsBody(rectangleOf: CGSize(width: 58, height: 26),
+                                 center: CGPoint(x: 0, y: 8))
         body.mass = 1.4
         body.categoryBitMask = Category.rider
         body.collisionBitMask = Category.ground
@@ -206,22 +202,13 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         chassis = frame
 
         func makeWheel(at offset: CGFloat, drive: Bool) -> SKNode {
-            let wheel = SKShapeNode(circleOfRadius: wheelRadius)
-            wheel.fillColor = SKColor(white: 0.12, alpha: 1)
-            wheel.strokeColor = SKColor(white: 0.6, alpha: 1)
-            wheel.lineWidth = 3
-            wheel.position = CGPoint(x: position.x + offset, y: position.y - 16)
-            wheel.zPosition = 9
-
-            // Spoke, so rotation is visible.
-            let spoke = SKShapeNode(rectOf: CGSize(width: 3, height: wheelRadius * 1.5))
-            spoke.fillColor = SKColor(white: 0.75, alpha: 1)
-            spoke.strokeColor = .clear
-            wheel.addChild(spoke)
+            let wheel = BikeArt.wheel(radius: wheelRadius)
+            wheel.position = CGPoint(x: position.x + offset, y: position.y + axleDrop)
+            wheel.zPosition = 11
 
             let physics = SKPhysicsBody(circleOfRadius: wheelRadius)
             physics.mass = drive ? 0.55 : 0.4
-            physics.friction = drive ? 1.0 : 0.75
+            physics.friction = 1.0
             physics.restitution = 0.02
             physics.angularDamping = drive ? 0.06 : 0.12
             physics.categoryBitMask = Category.wheel
@@ -257,6 +244,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         lastUpdate = currentTime
 
         drive(delta: delta)
+        updateRiderPose(delta: delta)
         updateAirborne()
         updateCamera(delta: delta)
 
@@ -280,11 +268,18 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         // climb rather than politely rolling backwards down every hill.
         let step = CGFloat(delta * 60)
         let maxSpin: CGFloat = 34
+        let grounded = airborneFrames == 0
         if throttle {
             // Torque rather than a velocity assignment, so wheelspin, hills and
             // landings all affect acceleration naturally.
             if rear.angularVelocity > -maxSpin {
-                rear.applyAngularImpulse(-260 * step)
+                rear.applyAngularImpulse(-300 * step)
+            }
+            // Plus a direct shove while a wheel is down. Torque alone depends
+            // on grip and on the joint solver agreeing with us; this guarantees
+            // the throttle always does something the rider can feel.
+            if grounded && body.velocity.dx < 620 {
+                body.applyForce(CGVector(dx: 620, dy: 0))
             }
         }
         if brake {
@@ -308,6 +303,24 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
         // Air drag keeps top speed finite and landings sane.
         body.velocity.dx *= 0.9995
+    }
+
+    /// Shifts the rider's weight with the lean controls. Purely cosmetic, but
+    /// without it the lean buttons feel like they do nothing at low speed.
+    private func updateRiderPose(delta: TimeInterval) {
+        guard let rider = riderNode else { return }
+        var targetX: CGFloat = -6
+        var targetRotation: CGFloat = 0
+        if leanBack {
+            targetX = -13
+            targetRotation = 0.20
+        } else if leanForward {
+            targetX = 1
+            targetRotation = -0.20
+        }
+        let ease = CGFloat(min(delta * 9, 1))
+        rider.position.x += (targetX - rider.position.x) * ease
+        rider.zRotation += (targetRotation - rider.zRotation) * ease
     }
 
     private func updateAirborne() {
