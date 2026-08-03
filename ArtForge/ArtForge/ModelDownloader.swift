@@ -15,22 +15,16 @@ struct ModelOption: Identifiable, Hashable {
         ByteCountFormatter.string(fromByteCount: approximateBytes, countStyle: .file)
     }
 
-    static let catalog: [ModelOption] = [
-        ModelOption(
-            id: "sd21-base-palettized",
-            title: "Stable Diffusion 2.1 base",
-            detail: "6-bit palettized, tuned for the Neural Engine. Best balance of speed, quality, and memory.",
-            approximateBytes: 1_140_000_000,
-            url: URL(string: "https://huggingface.co/apple/coreml-stable-diffusion-2-1-base-palettized/resolve/main/coreml-stable-diffusion-2-1-base-palettized_split_einsum_v2_compiled.zip")!
-        ),
-        ModelOption(
-            id: "sd15-palettized",
-            title: "Stable Diffusion 1.5",
-            detail: "6-bit palettized. Older model, often better at people and illustration styles.",
-            approximateBytes: 1_570_000_000,
-            url: URL(string: "https://huggingface.co/apple/coreml-stable-diffusion-v1-5-palettized/resolve/main/coreml-stable-diffusion-v1-5-palettized_split_einsum_v2_compiled.zip")!
-        )
-    ]
+    /// One model, chosen rather than offered as a menu: 6-bit palettized and
+    /// compiled for the Neural Engine, which is the best balance of speed,
+    /// quality, and memory on a phone.
+    static let standard = ModelOption(
+        id: "sd21-base-palettized",
+        title: "Stable Diffusion 2.1 base",
+        detail: "6-bit palettized, tuned for the Neural Engine.",
+        approximateBytes: 1_140_000_000,
+        url: URL(string: "https://huggingface.co/apple/coreml-stable-diffusion-2-1-base-palettized/resolve/main/coreml-stable-diffusion-2-1-base-palettized_split_einsum_v2_compiled.zip")!
+    )
 }
 
 /// Downloads a model zip straight to the phone and unpacks it into place, so

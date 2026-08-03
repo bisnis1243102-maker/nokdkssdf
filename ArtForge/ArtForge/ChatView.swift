@@ -404,8 +404,8 @@ struct ChatView: View {
                 .foregroundColor(Theme.primaryText)
             Text("""
                  To draw anything you describe I need a Stable Diffusion model. \
-                 I can download one for you right here over Wi-Fi — no computer, \
-                 no account, no key. It is a one-time download; after that this \
+                 I can download it right here over Wi-Fi — no computer, no \
+                 account, no key. It is a one-time download; after that this \
                  works in airplane mode.
                  """)
                 .font(.footnote)
@@ -415,38 +415,25 @@ struct ChatView: View {
             if downloader.isBusy || downloader.phase == .finished || isDownloadFailed {
                 downloadProgress
             } else {
-                ForEach(ModelOption.catalog) { option in
-                    Button {
-                        downloader.start(option)
-                    } label: {
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(Theme.accent)
-                            VStack(alignment: .leading, spacing: 3) {
-                                HStack {
-                                    Text(option.title)
-                                        .font(.footnote.weight(.semibold))
-                                        .foregroundColor(Theme.primaryText)
-                                    Text(option.sizeText)
-                                        .font(.caption2)
-                                        .foregroundColor(Theme.accent)
-                                }
-                                Text(option.detail)
-                                    .font(.caption2)
-                                    .foregroundColor(Theme.secondaryText)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .padding(12)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.background))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.hairline, lineWidth: 1))
+                Button {
+                    downloader.start(ModelOption.standard)
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: "arrow.down.circle.fill")
+                        Text("Download model")
+                        Text(ModelOption.standard.sizeText)
+                            .font(.caption2)
+                            .opacity(0.75)
                     }
-                    .buttonStyle(.plain)
+                    .font(.footnote.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(RoundedRectangle(cornerRadius: 13).fill(Theme.accent))
+                    .foregroundColor(.black)
                 }
+                .buttonStyle(.plain)
 
-                Text("Downloads on Wi-Fi only. Keep the app open while it runs.")
+                Text("\(ModelOption.standard.title) · Wi-Fi only · keep the app open while it runs.")
                     .font(.caption2)
                     .foregroundColor(Theme.secondaryText)
 
@@ -514,7 +501,7 @@ struct ChatView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    step(1, "Tap a model above",
+                    step(1, "Tap Download model",
                          "The app downloads it straight to your phone from Apple's public Core ML model release. No computer, no account, no key — it is an ordinary file download.")
                     step(2, "Wait for the download",
                          "1.1–1.6 GB over Wi-Fi. Keep ArtForge open while it runs; you can cancel any time and start again later.")
