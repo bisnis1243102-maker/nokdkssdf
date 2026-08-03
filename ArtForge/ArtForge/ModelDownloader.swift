@@ -152,8 +152,8 @@ final class ModelDownloader: NSObject, ObservableObject {
         guard !isBusy else { return }
 
         // A model needs room for the zip and the unpacked copy at once.
-        if let free = Self.availableBytes(), free < option.approximateBytes * 5 / 2 {
-            let needed = ByteCountFormatter.string(fromByteCount: option.approximateBytes * 5 / 2, countStyle: .file)
+        if let free = Self.availableBytes(), free < option.approximateBytes * 7 / 2 {
+            let needed = ByteCountFormatter.string(fromByteCount: option.approximateBytes * 7 / 2, countStyle: .file)
             let have = ByteCountFormatter.string(fromByteCount: free, countStyle: .file)
             phase = .failed("Not enough space. Need about \(needed) free while installing, you have \(have).")
             return
@@ -190,6 +190,12 @@ final class ModelDownloader: NSObject, ObservableObject {
                 self.phase = .idle
             }
         }
+    }
+
+    /// Clears any failed state and starts over from scratch.
+    func restart(_ option: ModelOption) {
+        cancel()
+        start(option)
     }
 
     func cancel() {
@@ -333,12 +339,17 @@ extension ModelDownloader: URLSessionDownloadDelegate {
     nonisolated func urlSession(_ session: URLSession,
                                 downloadTask: URLSessionDownloadTask,
                                 didFinishDownloadingTo location: URL) {
-        // The temp file is deleted the moment this returns, so move it now,
-        // synchronously, before hopping to the main actor.
-        let holding = FileManager.default.temporaryDirectory
+        // The file is gone the moment this returns, so take it now, synchronously.
+        //
+        // It must be *copied*, not moved: a background session stages the
+        // download outside the app sandbox, where we have read access but no
+        // permission to delete — and a move is a copy plus a delete.
+        let fm = FileManager.default
+        let holding = fm.temporaryDirectory
             .appendingPathComponent("model-download-\(UUID().uuidString).zip")
         do {
-            try FileManager.default.moveItem(at: location, to: holding)
+            if fm.fileExists(atPath: holding.path) { try fm.removeItem(at: holding) }
+            try fm.copyItem(at: location, to: holding)
         } catch {
             Task { @MainActor in self.phase = .failed(error.localizedDescription) }
             return

@@ -507,7 +507,7 @@ struct ChatView: View {
                         if downloader.canResume {
                             downloader.start(ModelOption.standard)
                         } else {
-                            downloader.cancel()
+                            downloader.restart(ModelOption.standard)
                         }
                     }
                         .font(.caption.weight(.semibold))
