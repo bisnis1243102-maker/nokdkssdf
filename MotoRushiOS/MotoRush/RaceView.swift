@@ -1,5 +1,5 @@
 import SwiftUI
-import SpriteKit
+import SceneKit
 
 /// Hosts the SpriteKit race and draws the HUD and touch controls over it.
 struct RaceView: View {
@@ -7,15 +7,15 @@ struct RaceView: View {
     let ref: GameState.CareerTrackRef
 
     @StateObject private var hud = RaceHUD()
-    @State private var scene: RaceScene?
+    @State private var controller: Race3DController?
     @State private var paused = false
     @State private var runId = 0
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                if let s = scene {
-                    SpriteView(scene: s, preferredFramesPerSecond: 120)
+                if let c = controller {
+                    Race3DView(controller: c)
                         .ignoresSafeArea()
                         .id(runId)
                 } else {
@@ -64,8 +64,7 @@ struct RaceView: View {
     /// Instant restart: drop the old scene and build a fresh one on the same
     /// track, exactly as it was at the gate.
     private func rebuild(size: CGSize) {
-        scene?.isPaused = true
-        scene = nil
+        controller = nil
         hud.finished = false
         hud.racing = false
         hud.message = ""
@@ -74,24 +73,22 @@ struct RaceView: View {
     }
 
     private func buildSceneIfNeeded(size: CGSize) {
-        guard scene == nil else { return }
+        guard controller == nil else { return }
         let career = game.trackFor(ref)
         let track = Track(seed: career.seed, biomeKey: career.biome, difficulty: career.difficulty)
-        let s = RaceScene(size: size)
-        s.scaleMode = .resizeFill
-        s.track = track
-        s.playerSpec = game.currentSpec
-        s.playerUpgrades = game.currentUpgrades
-        s.playerName = game.profile.name
-        s.playerNumber = game.profile.number
-        s.difficulty = career.difficulty
         let isJam = ref.regionId == "jam"
-        s.aiCount = isJam ? 0 : 5
-        s.assistLanding = game.profile.assistLanding
-        s.ghostFrames = game.ghost(for: career.id)
-        s.hud = hud
+        let engine = RaceEngine(track: track,
+                                playerSpec: game.currentSpec,
+                                upgrades: game.currentUpgrades,
+                                playerName: game.profile.name,
+                                playerNumber: game.profile.number,
+                                difficulty: career.difficulty,
+                                aiCount: isJam ? 0 : 5,
+                                ghost: game.ghost(for: career.id),
+                                hud: hud)
+        engine.assistLanding = game.profile.assistLanding
         Haptics.enabled = game.profile.hapticsOn
-        s.onFinish = { outcome in
+        engine.onFinish = { outcome in
             let posBonus = [1.0, 0.75, 0.6, 0.5, 0.42, 0.36]
             let mult = outcome.position <= posBonus.count ? posBonus[outcome.position - 1] : 0.3
             var coins = Int((220 + career.difficulty * 420 + Double(outcome.perfects) * 28) * mult)
@@ -122,7 +119,7 @@ struct RaceView: View {
                 game.screen = .podium
             }
         }
-        scene = s
+        controller = Race3DController(engine: engine)
     }
 
     // MARK: HUD
@@ -153,7 +150,7 @@ struct RaceView: View {
                 .buttonStyle(.plain)
                 Button {
                     paused = true
-                    scene?.isPaused = true
+                    controller?.scene.isPaused = true
                 } label: {
                     Image(systemName: "pause.fill")
                         .font(.system(size: 16, weight: .bold))
@@ -238,28 +235,28 @@ struct RaceView: View {
                 VStack(spacing: 10) {
                     HStack(spacing: 10) {
                         ControlButton(label: "WHIP L", small: true) { down in
-                            scene?.controls.whip = down ? -1 : 0
+                            controller?.engine.controls.whip = down ? -1 : 0
                         }
                         ControlButton(label: "WHIP R", small: true) { down in
-                            scene?.controls.whip = down ? 1 : 0
+                            controller?.engine.controls.whip = down ? 1 : 0
                         }
                     }
                     HStack(spacing: 10) {
                         ControlButton(label: "LEAN\nBACK", tint: Theme.cyan.opacity(0.35)) { down in
-                            scene?.controls.lean = down ? -1 : 0
+                            controller?.engine.controls.lean = down ? -1 : 0
                         }
                         ControlButton(label: "LEAN\nFWD", tint: Theme.cyan.opacity(0.35)) { down in
-                            scene?.controls.lean = down ? 1 : 0
+                            controller?.engine.controls.lean = down ? 1 : 0
                         }
                     }
                 }
                 Spacer()
                 VStack(spacing: 10) {
                     ControlButton(label: "BRAKE", tint: Color.white.opacity(0.18)) { down in
-                        scene?.controls.brake = down ? 1 : 0
+                        controller?.engine.controls.brake = down ? 1 : 0
                     }
                     ControlButton(label: "THROTTLE", tint: Theme.accent.opacity(0.85), big: true) { down in
-                        scene?.controls.throttle = down ? 1 : 0
+                        controller?.engine.controls.throttle = down ? 1 : 0
                     }
                 }
             }
@@ -277,13 +274,13 @@ struct RaceView: View {
                     .foregroundColor(.white)
                 PillButton(title: "Resume") {
                     paused = false
-                    scene?.isPaused = false
+                    controller?.scene.isPaused = false
                 }
                 PillButton(title: "Restart", tint: Theme.panelHi, textColor: .white) {
                     runId += 1
                 }
                 PillButton(title: "Quit to Career", tint: Theme.red, textColor: .white) {
-                    scene?.isPaused = false
+                    controller?.scene.isPaused = false
                     game.screen = .career
                 }
             }
