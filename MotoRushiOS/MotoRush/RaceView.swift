@@ -9,6 +9,7 @@ struct RaceView: View {
     @StateObject private var hud = RaceHUD()
     @State private var scene: RaceScene?
     @State private var paused = false
+    @State private var runId = 0
 
     var body: some View {
         GeometryReader { geo in
@@ -16,6 +17,7 @@ struct RaceView: View {
                 if let s = scene {
                     SpriteView(scene: s, preferredFramesPerSecond: 120)
                         .ignoresSafeArea()
+                        .id(runId)
                 } else {
                     Theme.bg.ignoresSafeArea()
                 }
@@ -46,6 +48,7 @@ struct RaceView: View {
                 if paused { pauseOverlay }
             }
             .onAppear { buildSceneIfNeeded(size: geo.size) }
+            .onChange(of: runId) { _ in rebuild(size: geo.size) }
         }
         .statusBarHidden(true)
     }
@@ -58,9 +61,21 @@ struct RaceView: View {
         }
     }
 
+    /// Instant restart: drop the old scene and build a fresh one on the same
+    /// track, exactly as it was at the gate.
+    private func rebuild(size: CGSize) {
+        scene?.isPaused = true
+        scene = nil
+        hud.finished = false
+        hud.racing = false
+        hud.message = ""
+        paused = false
+        buildSceneIfNeeded(size: size)
+    }
+
     private func buildSceneIfNeeded(size: CGSize) {
         guard scene == nil else { return }
-        let career = game.track(ref)
+        let career = game.trackFor(ref)
         let track = Track(seed: career.seed, biomeKey: career.biome, difficulty: career.difficulty)
         let s = RaceScene(size: size)
         s.scaleMode = .resizeFill
@@ -70,28 +85,37 @@ struct RaceView: View {
         s.playerName = game.profile.name
         s.playerNumber = game.profile.number
         s.difficulty = career.difficulty
-        s.aiCount = 5
+        let isJam = ref.regionId == "jam"
+        s.aiCount = isJam ? 0 : 5
         s.assistLanding = game.profile.assistLanding
+        s.ghostFrames = game.ghost(for: career.id)
         s.hud = hud
         Haptics.enabled = game.profile.hapticsOn
-        s.onFinish = { position, time, perfects, crashes, air, style, order in
+        s.onFinish = { outcome in
             let posBonus = [1.0, 0.75, 0.6, 0.5, 0.42, 0.36]
-            let mult = position <= posBonus.count ? posBonus[position - 1] : 0.3
-            let coins = Int((220 + career.difficulty * 420 + Double(perfects) * 28) * mult)
-            let xp = Int((60 + career.difficulty * 120 + Double(style) * 0.4) * mult)
+            let mult = outcome.position <= posBonus.count ? posBonus[outcome.position - 1] : 0.3
+            var coins = Int((220 + career.difficulty * 420 + Double(outcome.perfects) * 28) * mult)
+            var xp = Int((60 + career.difficulty * 120 + Double(outcome.style) * 0.4) * mult)
+            if outcome.beatGhost { coins += 150; xp += 40 }
             let result = RaceResult(trackId: career.id,
                                     regionId: ref.regionId,
                                     trackName: career.name,
-                                    position: position,
-                                    fieldSize: 6,
-                                    time: time,
-                                    perfects: perfects,
-                                    crashes: crashes,
-                                    airTime: air,
-                                    style: style,
+                                    position: outcome.position,
+                                    fieldSize: isJam ? 1 : 6,
+                                    time: outcome.time,
+                                    perfects: outcome.perfects,
+                                    crashes: outcome.crashes,
+                                    airTime: outcome.airTime,
+                                    style: outcome.style,
                                     coins: coins,
                                     xp: xp,
-                                    order: order)
+                                    beatGhost: outcome.beatGhost,
+                                    order: outcome.order)
+            // Keep the ghost only when the run was actually an improvement.
+            let previousBest = game.profile.bestTimes[career.id]
+            if previousBest == nil || outcome.time < (previousBest ?? .infinity) {
+                game.storeGhost(outcome.ghost, for: career.id)
+            }
             DispatchQueue.main.async {
                 game.apply(result: result)
                 game.pendingResult = result
@@ -110,7 +134,23 @@ struct RaceView: View {
                 hudChip(label: "TRACK", value: "\(Int(hud.progress * 100))%")
                 hudChip(label: "TIME", value: fmtTime(hud.time))
                 hudChip(label: "STYLE", value: "\(hud.style)")
+                if hud.hasGhost {
+                    hudChip(label: "GHOST",
+                            value: String(format: "%+.2f", -hud.ghostGap),
+                            tint: hud.ghostGap >= 0 ? Theme.green : Theme.red)
+                }
                 Spacer()
+                Button {
+                    Haptics.select()
+                    runId += 1
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.45)))
+                }
+                .buttonStyle(.plain)
                 Button {
                     paused = true
                     scene?.isPaused = true
@@ -175,14 +215,14 @@ struct RaceView: View {
         }
     }
 
-    private func hudChip(label: String, value: String) -> some View {
+    private func hudChip(label: String, value: String, tint: Color = .white) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label)
                 .font(.system(size: 9, weight: .heavy))
                 .foregroundColor(.white.opacity(0.6))
             Text(value)
                 .font(.system(size: 16, weight: .heavy, design: .rounded))
-                .foregroundColor(.white)
+                .foregroundColor(tint)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
@@ -238,6 +278,9 @@ struct RaceView: View {
                 PillButton(title: "Resume") {
                     paused = false
                     scene?.isPaused = false
+                }
+                PillButton(title: "Restart", tint: Theme.panelHi, textColor: .white) {
+                    runId += 1
                 }
                 PillButton(title: "Quit to Career", tint: Theme.red, textColor: .white) {
                     scene?.isPaused = false

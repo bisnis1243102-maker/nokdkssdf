@@ -142,6 +142,9 @@ struct PodiumView: View {
                     stat(String(format: "%.1fs", r.airTime), "AIR")
                     stat("+\(r.coins)", "COINS")
                     stat("+\(r.xp)", "XP")
+                    stat(game.lastTrophyDelta >= 0 ? "+\(game.lastTrophyDelta)" : "\(game.lastTrophyDelta)",
+                         "TROPHIES")
+                    if r.beatGhost { stat("BEAT", "GHOST") }
                 }
             }
             HStack(spacing: 12) {

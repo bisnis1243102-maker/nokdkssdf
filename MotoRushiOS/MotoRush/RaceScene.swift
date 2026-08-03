@@ -21,6 +21,22 @@ final class RaceHUD: ObservableObject {
     @Published var messageKind: String = ""
     @Published var standings: [(String, Bool)] = []
     @Published var finished = false
+    /// Gap to the ghost in seconds: negative means the player is ahead.
+    @Published var ghostGap: Double = 0
+    @Published var hasGhost = false
+}
+
+/// Everything the SwiftUI layer needs once the player crosses the line.
+struct RaceOutcome {
+    var position: Int
+    var time: Double
+    var perfects: Int
+    var crashes: Int
+    var airTime: Double
+    var style: Int
+    var beatGhost: Bool
+    var ghost: [GhostFrame]
+    var order: [(String, Double)]
 }
 
 final class RaceControls {
@@ -48,7 +64,8 @@ final class RaceScene: SKScene {
     var soundOn = true
     var hud = RaceHUD()
     var controls = RaceControls()
-    var onFinish: ((Int, Double, Int, Int, Double, Int, [(String, Double)]) -> Void)?
+    var ghostFrames: [GhostFrame]?
+    var onFinish: ((RaceOutcome) -> Void)?
 
     private var player: Bike!
     private var field: [Bike] = []
@@ -74,6 +91,12 @@ final class RaceScene: SKScene {
     private var messageTimer: Double = 0
     private var finishReported = false
 
+    // Ghost playback and this run's recording.
+    private var ghostBike: Bike?
+    private var ghostNode: BikeNode?
+    private var recording: [GhostFrame] = []
+    private var recordTimer: Double = 0
+
     // MARK: - Setup
 
     override func didMove(to view: SKView) {
@@ -85,6 +108,7 @@ final class RaceScene: SKScene {
         buildProps()
         buildField()
         buildGate()
+        buildGhost()
         buildParticlePool()
         hud.fieldSize = field.count
         hud.countdown = 3
@@ -307,6 +331,71 @@ final class RaceScene: SKScene {
         }
     }
 
+    /// The ghost is a real bike object that is never simulated — its pose is
+    /// driven straight from the recorded frames.
+    private func buildGhost() {
+        guard let frames = ghostFrames, frames.count > 4 else { return }
+        let bike = Bike(spec: playerSpec, track: track, name: "Ghost", tint: "#9FB4CE")
+        bike.number = playerNumber
+        pose(bike, at: frames[0])
+        let node = BikeNode(bike: bike, isPlayer: false)
+        node.alpha = 0.38
+        node.zPosition = 12
+        addChild(node)
+        ghostBike = bike
+        ghostNode = node
+        hud.hasGhost = true
+    }
+
+    private func pose(_ bike: Bike, at frame: GhostFrame) {
+        // Roll the wheels by the distance actually travelled since last pose.
+        let rolled = (frame.x - bike.x) / bike.wheelR
+        bike.x = frame.x
+        bike.y = frame.y
+        bike.ang = frame.ang
+        bike.whip = frame.whip
+        let c = cos(bike.ang), s = sin(bike.ang)
+        for i in 0..<bike.wheels.count {
+            let w = bike.wheels[i]
+            let ax = bike.x + w.ax * c - w.ay * s
+            let ay = bike.y + w.ax * s + w.ay * c
+            bike.wheels[i].cx = ax + s * bike.rest
+            bike.wheels[i].cy = ay - c * bike.rest
+            bike.wheels[i].spin += rolled
+        }
+    }
+
+    private func updateGhost() {
+        guard let bike = ghostBike, let frames = ghostFrames, !frames.isEmpty else { return }
+        let idx = Int(raceTime * 10)
+        if idx >= frames.count {
+            // The ghost has finished; park it at the line.
+            pose(bike, at: frames[frames.count - 1])
+            ghostNode?.alpha = 0.18
+        } else {
+            // Interpolate between samples so the ghost is smooth at 120 FPS.
+            let f0 = frames[idx]
+            let f1 = frames[min(frames.count - 1, idx + 1)]
+            let t = raceTime * 10 - Double(idx)
+            pose(bike, at: GhostFrame(x: lerp(f0.x, f1.x, t),
+                                      y: lerp(f0.y, f1.y, t),
+                                      ang: f0.ang + wrapAngle(f1.ang - f0.ang) * t,
+                                      whip: lerp(f0.whip, f1.whip, t)))
+        }
+        ghostNode?.sync(showLabel: false)
+        hud.ghostGap = ghostTimeAt(x: player.x) - raceTime
+    }
+
+    /// When the ghost passed this point — the basis for the live gap readout.
+    private func ghostTimeAt(x: Double) -> Double {
+        guard let frames = ghostFrames, !frames.isEmpty else { return 0 }
+        if x <= frames[0].x { return 0 }
+        for (i, f) in frames.enumerated() where f.x >= x {
+            return Double(i) * 0.1
+        }
+        return Double(frames.count) * 0.1
+    }
+
     private func buildGate() {
         // A drop gate in front of the pack, the way a real gate drop reads.
         let gate = SKNode()
@@ -410,6 +499,17 @@ final class RaceScene: SKScene {
                 if bike.crashed && bike.crashTimer > 1.6 { bike.respawn() }
             }
             if player.crashed && player.crashTimer > 1.8 && !player.finished { player.respawn() }
+
+            // Record this run at 10 Hz for the next ghost.
+            if !player.finished {
+                recordTimer += dt
+                if recordTimer >= 0.1 {
+                    recordTimer -= 0.1
+                    recording.append(GhostFrame(x: player.x, y: player.y,
+                                                ang: player.ang, whip: player.whip))
+                }
+            }
+            updateGhost()
             checkFinish()
         default:
             break
@@ -486,16 +586,22 @@ final class RaceScene: SKScene {
             let position = (order.firstIndex(where: { $0 === player }) ?? 0) + 1
             showMessage(position == 1 ? "WINNER" : "P\(position)", kind: "big")
             let summary = order.map { ($0 === self.player ? "You" : $0.displayName, $0.finished ? $0.finishTime : -1) }
+            let ghostTotal = ghostFrames.map { Double($0.count) * 0.1 } ?? 0
+            let beatGhost = ghostTotal > 0 && player.finishTime < ghostTotal
+            if beatGhost { showMessage("GHOST BEATEN", kind: "good") }
+            let outcome = RaceOutcome(position: position,
+                                      time: player.finishTime,
+                                      perfects: player.perfects,
+                                      crashes: player.crashes,
+                                      airTime: player.totalAirTime,
+                                      style: Int(player.style),
+                                      beatGhost: beatGhost,
+                                      ghost: recording,
+                                      order: summary)
             let finishBlock = onFinish
-            let pos = position
-            let t = player.finishTime
-            let perfects = player.perfects
-            let crashes = player.crashes
-            let air = player.totalAirTime
-            let style = Int(player.style)
             run(SKAction.sequence([
                 SKAction.wait(forDuration: 1.6),
-                SKAction.run { finishBlock?(pos, t, perfects, crashes, air, style, summary) }
+                SKAction.run { finishBlock?(outcome) }
             ]))
         }
     }

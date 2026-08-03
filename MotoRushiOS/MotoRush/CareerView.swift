@@ -45,6 +45,7 @@ struct CareerView: View {
 
             Spacer(minLength: 0)
 
+            DivisionBadge(trophies: game.profile.trophies)
             CurrencyChip(icon: "bolt.fill", value: "\(game.profile.tokens)", tint: Theme.cyan)
             CurrencyChip(icon: "circle.fill", value: "\(game.profile.coins)", tint: Theme.gold)
             CurrencyChip(icon: "diamond.fill", value: "\(game.profile.gems)", tint: Color(hex: "#F0B429"))
@@ -104,6 +105,12 @@ struct CareerView: View {
     private var trackRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
+                JamCard(track: game.jamTrack,
+                        best: game.profile.jamBest,
+                        runs: game.profile.jamRuns) {
+                    game.screen = .race(GameState.CareerTrackRef(regionId: "jam",
+                                                                 trackId: game.jamTrack.id))
+                }
                 ForEach(region.tracks) { track in
                     TrackCard(track: track,
                               region: region,
@@ -289,6 +296,96 @@ struct TrackCard: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .shadow(color: .black.opacity(0.4), radius: 8, x: 4, y: 6)
+        .rotation3DEffect(.degrees(4), axis: (x: 0, y: 1, z: 0))
+    }
+}
+
+
+/// Current division and progress towards the next one.
+struct DivisionBadge: View {
+    let trophies: Int
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "trophy.fill")
+                .font(.system(size: 13, weight: .black))
+                .foregroundColor(Theme.gold)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(trophies)")
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                Text(Division.name(for: trophies).uppercased())
+                    .font(.system(size: 8, weight: .black))
+                    .foregroundColor(Theme.gold.opacity(0.9))
+            }
+            Capsule()
+                .fill(Color.white.opacity(0.15))
+                .frame(width: 34, height: 5)
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(Theme.green)
+                        .frame(width: 34 * Division.progress(for: trophies), height: 5)
+                }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.black.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+/// The weekly Jam: one rotating track, solo, run against your own best.
+struct JamCard: View {
+    let track: CareerTrack
+    let best: Double
+    let runs: Int
+    let onRace: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("WEEKLY JAM")
+                .font(.system(size: 15, weight: .black))
+                .foregroundColor(Color(hex: "#1A1206"))
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background(Theme.gold)
+
+            VStack(spacing: 6) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 34))
+                    .foregroundColor(Theme.accent)
+                Text(Biome.named(track.biome).name)
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(.white)
+                Text(best > 0 ? "Best \(fmtTime(best))" : "No time set")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.75))
+                Text("\(runs) run\(runs == 1 ? "" : "s") this week")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white.opacity(0.55))
+            }
+            .frame(maxHeight: .infinity)
+
+            Button(action: {
+                Haptics.select()
+                onRace()
+            }) {
+                Text("RIDE")
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .foregroundColor(Color(hex: "#1A1206"))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Theme.gold)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(width: 176, height: 268)
+        .background(
+            LinearGradient(colors: [Color(hex: "#4A2418"), Color(hex: "#231018")],
+                           startPoint: .top, endPoint: .bottom)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .shadow(color: .black.opacity(0.45), radius: 8, x: 4, y: 6)
         .rotation3DEffect(.degrees(4), axis: (x: 0, y: 1, z: 0))
     }
 }

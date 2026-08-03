@@ -211,9 +211,68 @@ struct Profile: Codable {
     var soundOn = true
     var hapticsOn = true
     var assistLanding = false
+    var ghostsOn = true
     var lastRegion = "copper"
+    var trophies = 0
+    /// Best-run replays, keyed by track id. Flattened [x, y, angle, whip] at
+    /// 10 Hz — about 4 KB for a two-minute lap.
+    var ghosts: [String: [Double]] = [:]
+    var jamWeek = ""
+    var jamBest: Double = 0
+    var jamRuns = 0
 
     var xpForNext: Int { Int(75 * pow(Double(level), 1.25)) }
+}
+
+/// Trophy ladder. Winning a career track or beating your ghost pays trophies;
+/// a bad result costs a few, so a division has to be held rather than banked.
+enum Division {
+    static let names = ["Dirt", "Clay", "Loam", "Sand", "Shale", "Granite", "Chrome", "Factory"]
+    static let steps = [0, 250, 600, 1100, 1800, 2700, 3900, 5400]
+
+    static func index(for trophies: Int) -> Int {
+        var idx = 0
+        for (i, s) in steps.enumerated() where trophies >= s { idx = i }
+        return idx
+    }
+    static func name(for trophies: Int) -> String { names[index(for: trophies)] }
+    static func floor(for trophies: Int) -> Int { steps[index(for: trophies)] }
+    static func ceiling(for trophies: Int) -> Int {
+        let i = index(for: trophies)
+        return i + 1 < steps.count ? steps[i + 1] : steps[i] + 1200
+    }
+    static func progress(for trophies: Int) -> Double {
+        let lo = floor(for: trophies), hi = ceiling(for: trophies)
+        return clampd(Double(trophies - lo) / Double(max(1, hi - lo)), 0, 1)
+    }
+}
+
+/// The weekly Jam: one shared track for everyone, rotating every Monday, run
+/// solo against your own best time.
+enum Jam {
+    static func weekKey(_ date: Date = Date()) -> String {
+        var cal = Calendar(identifier: .iso8601)
+        cal.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        let c = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        return "\(c.yearForWeekOfYear ?? 0)-W\(c.weekOfYear ?? 0)"
+    }
+
+    static func seed(_ key: String = weekKey()) -> UInt32 {
+        var h: UInt32 = 2166136261
+        for b in key.utf8 {
+            h = (h ^ UInt32(b)) &* 16777619
+        }
+        return h
+    }
+
+    static func track(_ key: String = weekKey()) -> CareerTrack {
+        var rnd = RNG(seed: seed(key))
+        let biomes = Biome.all.map { $0.key }
+        let biome = biomes[rnd.int(biomes.count)]
+        return CareerTrack(id: "jam-\(key)", name: "Weekly Jam", seed: seed(key) ^ 0x5EED,
+                           biome: biome, difficulty: 0.55 + rnd.next() * 0.35,
+                           recommendedPower: 700, index: 0)
+    }
 }
 
 enum DailyGoal {
@@ -244,6 +303,8 @@ final class GameState: ObservableObject {
     @Published var profile: Profile
     @Published var screen: Screen = .career
     @Published var pendingResult: RaceResult?
+    /// Surfaced on the podium; set by `apply(result:)`.
+    var lastTrophyDelta = 0
 
     enum Screen: Equatable {
         case career
@@ -269,6 +330,51 @@ final class GameState: ObservableObject {
             profile = Profile()
         }
         rollDailyGoal()
+        rollJam()
+    }
+
+    /// A new week means a new Jam track and a fresh personal best.
+    func rollJam() {
+        let key = Jam.weekKey()
+        if profile.jamWeek != key {
+            profile.jamWeek = key
+            profile.jamBest = 0
+            profile.jamRuns = 0
+            profile.ghosts.removeValue(forKey: Jam.track(key).id)
+            save()
+        }
+    }
+
+    var jamTrack: CareerTrack { Jam.track(profile.jamWeek.isEmpty ? Jam.weekKey() : profile.jamWeek) }
+
+    /// Career tracks live in a region; the Jam track does not.
+    func trackFor(_ ref: CareerTrackRef) -> CareerTrack {
+        ref.regionId == "jam" ? jamTrack : track(ref)
+    }
+
+    func ghost(for trackId: String) -> [GhostFrame]? {
+        guard profile.ghostsOn, let flat = profile.ghosts[trackId], flat.count >= 4 else { return nil }
+        var out: [GhostFrame] = []
+        out.reserveCapacity(flat.count / 4)
+        var i = 0
+        while i + 3 < flat.count {
+            out.append(GhostFrame(x: flat[i], y: flat[i + 1], ang: flat[i + 2], whip: flat[i + 3]))
+            i += 4
+        }
+        return out
+    }
+
+    func storeGhost(_ frames: [GhostFrame], for trackId: String) {
+        var flat: [Double] = []
+        flat.reserveCapacity(frames.count * 4)
+        for f in frames {
+            flat.append((f.x * 100).rounded() / 100)
+            flat.append((f.y * 100).rounded() / 100)
+            flat.append((f.ang * 1000).rounded() / 1000)
+            flat.append((f.whip * 1000).rounded() / 1000)
+        }
+        profile.ghosts[trackId] = flat
+        save()
     }
 
     func save() {
@@ -385,8 +491,21 @@ final class GameState: ObservableObject {
         profile.airtime += p.airTime
         if p.position == 1 { profile.wins += 1 }
 
+        let isJam = p.regionId == "jam"
         let medal = p.position == 1 ? 3 : (p.position == 2 ? 2 : (p.position == 3 ? 1 : 0))
-        if medal > (profile.medals[p.trackId] ?? 0) { profile.medals[p.trackId] = medal }
+        if !isJam, medal > (profile.medals[p.trackId] ?? 0) { profile.medals[p.trackId] = medal }
+
+        // Trophies: a podium pays, the back of the pack costs, and beating
+        // your own ghost is worth as much as a win.
+        var trophyDelta = [30, 18, 10, -4, -8, -12][max(0, min(5, p.position - 1))]
+        if p.beatGhost { trophyDelta += 12 }
+        if isJam { trophyDelta = p.beatGhost ? 25 : 6 }
+        profile.trophies = max(0, profile.trophies + trophyDelta)
+
+        if isJam {
+            profile.jamRuns += 1
+            if profile.jamBest == 0 || p.time < profile.jamBest { profile.jamBest = p.time }
+        }
         if let best = profile.bestTimes[p.trackId] {
             if p.time < best { profile.bestTimes[p.trackId] = p.time }
         } else {
@@ -395,6 +514,7 @@ final class GameState: ObservableObject {
 
         profile.coins += p.coins
         profile.xp += p.xp
+        lastTrophyDelta = trophyDelta
         while profile.xp >= profile.xpForNext {
             profile.xp -= profile.xpForNext
             profile.level += 1
@@ -435,11 +555,19 @@ struct RaceResult: Equatable {
     var style: Int
     var coins: Int
     var xp: Int
+    var beatGhost: Bool
     var order: [(String, Double)]
 
     static func == (a: RaceResult, b: RaceResult) -> Bool {
         a.trackId == b.trackId && a.position == b.position && a.time == b.time
     }
+}
+
+struct GhostFrame {
+    var x: Double
+    var y: Double
+    var ang: Double
+    var whip: Double
 }
 
 // MARK: - Colors
