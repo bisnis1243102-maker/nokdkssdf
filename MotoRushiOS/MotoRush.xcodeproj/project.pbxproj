@@ -1,0 +1,316 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4D0000000000000000000001 /* MotoRushApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000001 /* MotoRushApp.swift */; };
+		4D0000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000002 /* ContentView.swift */; };
+		4D0000000000000000000003 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000003 /* Theme.swift */; };
+		4D0000000000000000000004 /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000004 /* Model.swift */; };
+		4D0000000000000000000005 /* Track.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000005 /* Track.swift */; };
+		4D0000000000000000000006 /* Physics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000006 /* Physics.swift */; };
+		4D0000000000000000000007 /* AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000007 /* AI.swift */; };
+		4D0000000000000000000008 /* RaceScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000008 /* RaceScene.swift */; };
+		4D0000000000000000000009 /* RaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000009 /* RaceView.swift */; };
+		4D0000000000000000000010 /* CareerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000010 /* CareerView.swift */; };
+		4D0000000000000000000011 /* PodiumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000011 /* PodiumView.swift */; };
+		4D0000000000000000000012 /* GarageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000012 /* GarageView.swift */; };
+		4D0000000000000000000090 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000090 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		4C0000000000000000000001 /* MotoRushApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotoRushApp.swift; sourceTree = "<group>"; };
+		4C0000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000003 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		4C0000000000000000000004 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
+		4C0000000000000000000005 /* Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Track.swift; sourceTree = "<group>"; };
+		4C0000000000000000000006 /* Physics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Physics.swift; sourceTree = "<group>"; };
+		4C0000000000000000000007 /* AI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI.swift; sourceTree = "<group>"; };
+		4C0000000000000000000008 /* RaceScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceScene.swift; sourceTree = "<group>"; };
+		4C0000000000000000000009 /* RaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000010 /* CareerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000011 /* PodiumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodiumView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000012 /* GarageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000090 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4B00000000000000000000F1 /* MotoRush.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MotoRush.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4B00000000000000000000A7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4B00000000000000000000A3 = {
+			isa = PBXGroup;
+			children = (
+				4B00000000000000000000A4 /* MotoRush */,
+				4B00000000000000000000A5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4B00000000000000000000A4 /* MotoRush */ = {
+			isa = PBXGroup;
+			children = (
+				4C0000000000000000000001 /* MotoRushApp.swift */,
+				4C0000000000000000000002 /* ContentView.swift */,
+				4C0000000000000000000003 /* Theme.swift */,
+				4C0000000000000000000004 /* Model.swift */,
+				4C0000000000000000000005 /* Track.swift */,
+				4C0000000000000000000006 /* Physics.swift */,
+				4C0000000000000000000007 /* AI.swift */,
+				4C0000000000000000000008 /* RaceScene.swift */,
+				4C0000000000000000000009 /* RaceView.swift */,
+				4C0000000000000000000010 /* CareerView.swift */,
+				4C0000000000000000000011 /* PodiumView.swift */,
+				4C0000000000000000000012 /* GarageView.swift */,
+				4C0000000000000000000090 /* Assets.xcassets */,
+			);
+			path = MotoRush;
+			sourceTree = "<group>";
+		};
+		4B00000000000000000000A5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4B00000000000000000000F1 /* MotoRush.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4B00000000000000000000A2 /* MotoRush */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4B00000000000000000000AA /* Build configuration list for PBXNativeTarget "MotoRush" */;
+			buildPhases = (
+				4B00000000000000000000A6 /* Sources */,
+				4B00000000000000000000A7 /* Frameworks */,
+				4B00000000000000000000A8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MotoRush;
+			productName = MotoRush;
+			productReference = 4B00000000000000000000F1 /* MotoRush.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4B00000000000000000000A1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					4B00000000000000000000A2 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 4B00000000000000000000A9 /* Build configuration list for PBXProject "MotoRush" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 4B00000000000000000000A3;
+			productRefGroup = 4B00000000000000000000A5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4B00000000000000000000A2 /* MotoRush */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4B00000000000000000000A8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4D0000000000000000000090 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4B00000000000000000000A6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4D0000000000000000000001 /* MotoRushApp.swift in Sources */,
+				4D0000000000000000000002 /* ContentView.swift in Sources */,
+				4D0000000000000000000003 /* Theme.swift in Sources */,
+				4D0000000000000000000004 /* Model.swift in Sources */,
+				4D0000000000000000000005 /* Track.swift in Sources */,
+				4D0000000000000000000006 /* Physics.swift in Sources */,
+				4D0000000000000000000007 /* AI.swift in Sources */,
+				4D0000000000000000000008 /* RaceScene.swift in Sources */,
+				4D0000000000000000000009 /* RaceView.swift in Sources */,
+				4D0000000000000000000010 /* CareerView.swift in Sources */,
+				4D0000000000000000000011 /* PodiumView.swift in Sources */,
+				4D0000000000000000000012 /* GarageView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		4B00000000000000000000AB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		4B00000000000000000000AC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		4B00000000000000000000AD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "MotoRush";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.MotoRush;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4B00000000000000000000AE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "MotoRush";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.MotoRush;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4B00000000000000000000A9 /* Build configuration list for PBXProject "MotoRush" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4B00000000000000000000AB /* Debug */,
+				4B00000000000000000000AC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4B00000000000000000000AA /* Build configuration list for PBXNativeTarget "MotoRush" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4B00000000000000000000AD /* Debug */,
+				4B00000000000000000000AE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4B00000000000000000000A1 /* Project object */;
+}

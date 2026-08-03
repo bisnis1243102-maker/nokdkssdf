@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - claude/mobile-gaming-app-roblox-3f27o5
+      - claude/physics-motocross-game-3uu9ad
   workflow_dispatch:
 
 permissions:
@@ -28,6 +29,9 @@ jobs:
           - name: Billiard
             project: Billiard/Billiard.xcodeproj
             scheme: Billiard
+          - name: MotoRush
+            project: MotoRushiOS/MotoRush.xcodeproj
+            scheme: MotoRush
           - name: ForsaHorizon
             project: LibertyDrive/LibertyDrive.xcodeproj
             scheme: LibertyDrive
