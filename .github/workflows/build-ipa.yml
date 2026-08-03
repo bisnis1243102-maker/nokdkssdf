@@ -26,6 +26,9 @@ jobs:
           - name: BloomTycoon
             project: GrowAGarden2/GrowAGarden2.xcodeproj
             scheme: GrowAGarden2
+          - name: TrackRush
+            project: TrackRush/TrackRush.xcodeproj
+            scheme: TrackRush
           - name: ArtForge
             project: ArtForge/ArtForge.xcodeproj
             scheme: ArtForge
