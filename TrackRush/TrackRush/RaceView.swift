@@ -30,7 +30,9 @@ struct RaceView: View {
     init(track: Track, store: GameStore) {
         self.track = track
         self.store = store
-        _scene = State(initialValue: GameScene(track: track, size: UIScreen.main.bounds.size))
+        let scene = GameScene(track: track, size: UIScreen.main.bounds.size)
+        scene.ghostSamples = store.ghost(for: track)
+        _scene = State(initialValue: scene)
     }
 
     var body: some View {
@@ -66,6 +68,8 @@ struct RaceView: View {
         scene.onFinish = { time in
             guard outcome == nil else { return }
             let isBest = store.record(time: time, for: track)
+            // The best run becomes the ghost you race next time.
+            if isBest { store.saveGhost(scene.recordedRun, for: track) }
             withAnimation(.spring(response: 0.35)) {
                 outcome = .finished(time: time, isBest: isBest)
             }
@@ -199,9 +203,24 @@ struct RaceView: View {
                     Text(GameStore.timeText(time))
                         .font(.system(size: 22, weight: .bold, design: .monospaced))
                         .foregroundColor(Palette.accent)
+                    medalBadge(track.medal(for: time))
                 }
 
                 HStack(spacing: 12) {
+                    if outcome == .crashed, scene.lastCheckpoint > 0 {
+                        Button {
+                            withAnimation { self.outcome = nil }
+                            scene.restartFromCheckpoint()
+                        } label: {
+                            Label("Checkpoint", systemImage: "flag.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .padding(.horizontal, 18).padding(.vertical, 13)
+                                .background(Capsule().fill(.white.opacity(0.9)))
+                                .foregroundColor(.black)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Button {
                         retry()
                     } label: {
@@ -232,6 +251,34 @@ struct RaceView: View {
         }
     }
 
+    private func medalBadge(_ medal: Medal) -> some View {
+        Group {
+            if medal == .none {
+                Text("Beat \(GameStore.timeText(track.bronzeTime)) for bronze")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.6))
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "medal.fill")
+                    Text(medal.label.uppercased())
+                }
+                .font(.system(size: 12, weight: .black))
+                .foregroundColor(medalColor(medal))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(medalColor(medal).opacity(0.16)))
+            }
+        }
+    }
+
+    private func medalColor(_ medal: Medal) -> Color {
+        switch medal {
+        case .gold: return Palette.accent
+        case .silver: return Color(white: 0.82)
+        case .bronze: return Color(red: 0.80, green: 0.52, blue: 0.30)
+        case .none: return .white
+        }
+    }
+
     /// Replaces the scene wholesale, which is the simplest way to guarantee a
     /// run starts from an identical state every time.
     private func retry() {
@@ -240,6 +287,7 @@ struct RaceView: View {
         speed = 0
         outcome = nil
         let fresh = GameScene(track: track, size: scene.size)
+        fresh.ghostSamples = store.ghost(for: track)
         attachCallbacks(to: fresh)
         scene = fresh
     }

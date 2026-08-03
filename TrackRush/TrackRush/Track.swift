@@ -53,6 +53,31 @@ struct Track: Identifiable, Hashable {
     /// How many big ramps get carved into the terrain.
     let jumps: Int
 
+    /// Target times, derived from length rather than hand-set: a gold demands
+    /// keeping the throttle pinned through most of the track, bronze allows a
+    /// cautious ride. Tunable once real times exist to compare against.
+    var goldTime: TimeInterval { length / 380 }
+    var silverTime: TimeInterval { length / 300 }
+    var bronzeTime: TimeInterval { length / 220 }
+
+    func medal(for time: TimeInterval) -> Medal {
+        if time <= goldTime { return .gold }
+        if time <= silverTime { return .silver }
+        if time <= bronzeTime { return .bronze }
+        return .none
+    }
+
+    /// Restart points, so a crash costs seconds rather than the whole run.
+    var checkpoints: [Double] {
+        var points: [Double] = [0]
+        var x = 1500.0
+        while x < length - 600 {
+            points.append(x)
+            x += 1500
+        }
+        return points
+    }
+
     var difficultyStars: Int {
         switch id {
         case 0...1: return 1

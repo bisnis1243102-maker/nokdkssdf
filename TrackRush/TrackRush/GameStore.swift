@@ -1,7 +1,30 @@
 import Foundation
 
-/// Best times and unlock progress. Small enough that UserDefaults is the right
-/// tool — there is nothing here worth a database.
+/// One frame of a recorded run. Small on purpose — a two-minute run at 30 Hz
+/// is only a few thousand of these.
+struct GhostSample: Codable {
+    let t: Double
+    let x: Double
+    let y: Double
+    let r: Double
+}
+
+enum Medal: Int, Comparable {
+    case none = 0, bronze, silver, gold
+
+    static func < (lhs: Medal, rhs: Medal) -> Bool { lhs.rawValue < rhs.rawValue }
+
+    var label: String {
+        switch self {
+        case .none: return "No medal"
+        case .bronze: return "Bronze"
+        case .silver: return "Silver"
+        case .gold: return "Gold"
+        }
+    }
+}
+
+/// Best times, medals, unlock progress, and the ghost of your best run.
 final class GameStore: ObservableObject {
     @Published private(set) var bestTimes: [Int: TimeInterval] = [:]
 
@@ -16,6 +39,11 @@ final class GameStore: ObservableObject {
     }
 
     func best(for track: Track) -> TimeInterval? { bestTimes[track.id] }
+
+    func medal(for track: Track) -> Medal {
+        guard let time = bestTimes[track.id] else { return .none }
+        return track.medal(for: time)
+    }
 
     /// Returns true when the run beat the stored time (or was the first).
     @discardableResult
@@ -44,5 +72,25 @@ final class GameStore: ObservableObject {
         return minutes > 0
             ? String(format: "%d:%05.2f", minutes, seconds)
             : String(format: "%.2fs", seconds)
+    }
+
+    // MARK: - Ghosts
+
+    /// Recorded runs are a few hundred kilobytes each, so they live as files
+    /// rather than bloating UserDefaults.
+    private func ghostURL(for track: Track) -> URL {
+        let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("ghost-\(track.id).json")
+    }
+
+    func ghost(for track: Track) -> [GhostSample] {
+        guard let data = try? Data(contentsOf: ghostURL(for: track)),
+              let samples = try? JSONDecoder().decode([GhostSample].self, from: data) else { return [] }
+        return samples
+    }
+
+    func saveGhost(_ samples: [GhostSample], for track: Track) {
+        guard let data = try? JSONEncoder().encode(samples) else { return }
+        try? data.write(to: ghostURL(for: track), options: .atomic)
     }
 }

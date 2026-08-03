@@ -40,6 +40,22 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     /// Airborne frames in a row — a couple of frames of daylight under a wheel
     /// on a bumpy straight shouldn't count as a jump.
     private var airborneFrames = 0
+
+    /// The best previous run, replayed alongside you.
+    var ghostSamples: [GhostSample] = []
+    private var ghostNode: SKNode?
+    /// This run, recorded at 30 Hz so it can become the next ghost.
+    private(set) var recordedRun: [GhostSample] = []
+    private var lastRecord: TimeInterval = 0
+
+    private var checkpoints: [Double] = []
+    private(set) var lastCheckpoint = 0
+    /// Time already banked before the current checkpoint restart.
+    private var bankedTime: TimeInterval = 0
+
+    private var countdown: TimeInterval = 3.2
+    private var countdownLabel: SKLabelNode?
+    private var dustCounter = 0
     private var isAirborne: Bool { airborneFrames > 6 }
 
     init(track: Track, size: CGSize) {
@@ -65,8 +81,37 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         buildFinish()
         buildBike(at: CGPoint(x: 120, y: 150))
 
+        checkpoints = track.checkpoints
+        buildGhost()
+        buildCountdown()
+
         startTime = 0
         running = true
+    }
+
+    private func buildGhost() {
+        guard !ghostSamples.isEmpty else { return }
+        let node = SKNode()
+        let body = BikeArt.body(rearAxle: CGPoint(x: -33, y: -14), frontAxle: CGPoint(x: 33, y: -14))
+        let rider = BikeArt.rider()
+        rider.position = CGPoint(x: -6, y: 6)
+        node.addChild(body)
+        node.addChild(rider)
+        node.alpha = 0.32
+        node.zPosition = 8
+        addChild(node)
+        ghostNode = node
+    }
+
+    private func buildCountdown() {
+        let label = SKLabelNode(fontNamed: "AvenirNext-Heavy")
+        label.fontSize = 76
+        label.fontColor = SKColor(red: 0.99, green: 0.79, blue: 0.24, alpha: 1)
+        label.verticalAlignmentMode = .center
+        label.position = CGPoint(x: 0, y: 40)
+        label.zPosition = 200
+        cameraNode.addChild(label)
+        countdownLabel = label
     }
 
     private func buildSky() {
@@ -239,16 +284,39 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
     override func update(_ currentTime: TimeInterval) {
         guard running else { return }
-        if startTime == 0 { startTime = currentTime }
         let delta = lastUpdate == 0 ? 1.0 / 60 : min(currentTime - lastUpdate, 1.0 / 20)
         lastUpdate = currentTime
+
+        // Nothing moves until the lights go out.
+        if countdown > 0 {
+            physicsWorld.speed = 0
+            countdown -= delta
+            let remaining = Int(ceil(countdown))
+            countdownLabel?.text = remaining > 0 ? "\(remaining)" : "GO"
+            countdownLabel?.setScale(1 + CGFloat(countdown.truncatingRemainder(dividingBy: 1)) * 0.35)
+            if countdown <= 0 {
+                physicsWorld.speed = 1
+                startTime = currentTime
+                countdownLabel?.run(.sequence([
+                    .group([.fadeOut(withDuration: 0.4), .scale(to: 2.2, duration: 0.4)]),
+                    .removeFromParent()
+                ]))
+                countdownLabel = nil
+            }
+            return
+        }
+
+        if startTime == 0 { startTime = currentTime }
 
         drive(delta: delta)
         updateRiderPose(delta: delta)
         updateAirborne()
         updateCamera(delta: delta)
 
-        let elapsed = currentTime - startTime
+        let elapsed = bankedTime + (currentTime - startTime)
+        updateGhost(elapsed: elapsed)
+        record(elapsed: elapsed)
+        updateCheckpoint()
         let progress = min(max(Double(chassis.position.x) / track.length, 0), 1)
         let speed = Double(chassis.physicsBody?.velocity.dx ?? 0)
         onTick?(progress, elapsed, speed)
@@ -267,20 +335,21 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         // this radius and mass) and against gravity, so the bike can actually
         // climb rather than politely rolling backwards down every hill.
         let step = CGFloat(delta * 60)
-        let maxSpin: CGFloat = 34
+        let maxSpin: CGFloat = 42
         let grounded = airborneFrames == 0
         if throttle {
             // Torque rather than a velocity assignment, so wheelspin, hills and
             // landings all affect acceleration naturally.
             if rear.angularVelocity > -maxSpin {
-                rear.applyAngularImpulse(-300 * step)
+                rear.applyAngularImpulse(-360 * step)
             }
             // Plus a direct shove while a wheel is down. Torque alone depends
             // on grip and on the joint solver agreeing with us; this guarantees
             // the throttle always does something the rider can feel.
-            if grounded && body.velocity.dx < 620 {
-                body.applyForce(CGVector(dx: 620, dy: 0))
+            if grounded && body.velocity.dx < 760 {
+                body.applyForce(CGVector(dx: 760, dy: 0))
             }
+            if grounded && abs(body.velocity.dx) > 40 { spawnDust() }
         }
         if brake {
             // Brake first, reverse only once nearly stopped.
@@ -297,7 +366,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
         // Leaning: strong in the air for rotation control, gentler on the
         // ground where it mostly shifts weight over a wheel.
-        let leanPower: CGFloat = isAirborne ? 45 : 20
+        let leanPower: CGFloat = isAirborne ? 62 : 26
         if leanInput != 0 {
             body.applyAngularImpulse(leanPower * leanInput * step)
         }
@@ -315,6 +384,111 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         let ease = CGFloat(min(delta * 9, 1))
         rider.position.x += (targetX - rider.position.x) * ease
         rider.zRotation += (targetRotation - rider.zRotation) * ease
+    }
+
+    /// Interpolates the recorded run to the current elapsed time. Linear is
+    /// plenty: samples are 33 ms apart and the ghost is translucent.
+    private func updateGhost(elapsed: TimeInterval) {
+        guard let ghostNode, !ghostSamples.isEmpty else { return }
+        guard elapsed <= ghostSamples[ghostSamples.count - 1].t else {
+            ghostNode.isHidden = true
+            return
+        }
+        ghostNode.isHidden = false
+
+        var low = 0, high = ghostSamples.count - 1
+        while low < high - 1 {
+            let mid = (low + high) / 2
+            if ghostSamples[mid].t <= elapsed { low = mid } else { high = mid }
+        }
+        let a = ghostSamples[low], b = ghostSamples[high]
+        let span = b.t - a.t
+        let t = span > 0 ? (elapsed - a.t) / span : 0
+        ghostNode.position = CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+        ghostNode.zRotation = CGFloat(a.r + (b.r - a.r) * t)
+    }
+
+    private func record(elapsed: TimeInterval) {
+        guard elapsed - lastRecord >= 1.0 / 30 else { return }
+        lastRecord = elapsed
+        recordedRun.append(GhostSample(t: elapsed,
+                                       x: Double(chassis.position.x),
+                                       y: Double(chassis.position.y),
+                                       r: Double(chassis.zRotation)))
+    }
+
+    private func updateCheckpoint() {
+        let x = Double(chassis.position.x)
+        while lastCheckpoint + 1 < checkpoints.count && x >= checkpoints[lastCheckpoint + 1] {
+            lastCheckpoint += 1
+            flashCheckpoint()
+        }
+    }
+
+    private func flashCheckpoint() {
+        let label = SKLabelNode(fontNamed: "AvenirNext-Bold")
+        label.text = "CHECKPOINT"
+        label.fontSize = 22
+        label.fontColor = SKColor(white: 1, alpha: 0.9)
+        label.position = CGPoint(x: 0, y: 90)
+        label.zPosition = 200
+        cameraNode.addChild(label)
+        label.run(.sequence([
+            .wait(forDuration: 0.5),
+            .group([.fadeOut(withDuration: 0.4), .moveBy(x: 0, y: 24, duration: 0.4)]),
+            .removeFromParent()
+        ]))
+    }
+
+    /// Puts the bike back on the last checkpoint, keeping the clock running.
+    /// A crash costs you time, not the whole run.
+    func restartFromCheckpoint() {
+        let x = checkpoints[lastCheckpoint]
+        let y = track.height(at: x, noise: noise) + 90
+
+        // Keep the clock: the time already ridden stays on the board.
+        bankedTime = recordedRun.last?.t ?? 0
+        startTime = 0
+        lastUpdate = 0
+
+        place(chassis, at: CGPoint(x: x, y: y))
+        place(rearWheel, at: CGPoint(x: x - 33, y: y - 14))
+        place(frontWheel, at: CGPoint(x: x + 33, y: y - 14))
+
+        chassis.physicsBody?.angularDamping = 0.55
+        cameraNode.position = CGPoint(x: CGFloat(x) + 120, y: CGFloat(y) + 60)
+        airborneFrames = 0
+        countdown = 1.2
+        buildCountdown()
+        running = true
+    }
+
+    private func place(_ node: SKNode, at position: CGPoint) {
+        node.position = position
+        node.zRotation = 0
+        node.physicsBody?.velocity = .zero
+        node.physicsBody?.angularVelocity = 0
+    }
+
+    /// A puff of dirt off the rear wheel under power. Cheap shape nodes rather
+    /// than a particle system, because there are never many at once.
+    private func spawnDust() {
+        dustCounter += 1
+        guard dustCounter % 3 == 0 else { return }
+        let puff = SKShapeNode(circleOfRadius: CGFloat.random(in: 3...7))
+        puff.fillColor = SKColor(red: 0.55, green: 0.44, blue: 0.31, alpha: 0.55)
+        puff.strokeColor = .clear
+        puff.position = rearWheel.position
+        puff.zPosition = 7
+        addChild(puff)
+        puff.run(.sequence([
+            .group([
+                .moveBy(x: CGFloat.random(in: -70 ... -20), y: CGFloat.random(in: 8...42), duration: 0.5),
+                .fadeOut(withDuration: 0.5),
+                .scale(to: 2.1, duration: 0.5)
+            ]),
+            .removeFromParent()
+        ]))
     }
 
     private func updateAirborne() {

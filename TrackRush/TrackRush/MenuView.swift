@@ -83,12 +83,20 @@ struct MenuView: View {
                 Spacer()
 
                 if let best = store.best(for: track) {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("BEST").font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.4))
-                        Text(GameStore.timeText(best))
-                            .font(.system(size: 14, weight: .bold, design: .monospaced))
-                            .foregroundColor(Palette.accent)
+                    HStack(spacing: 9) {
+                        let medal = store.medal(for: track)
+                        if medal != .none {
+                            Image(systemName: "medal.fill")
+                                .font(.system(size: 17))
+                                .foregroundColor(medalColor(medal))
+                        }
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("BEST").font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.4))
+                            Text(GameStore.timeText(best))
+                                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                .foregroundColor(Palette.accent)
+                        }
                     }
                 } else if unlocked {
                     Image(systemName: "chevron.right")
@@ -108,6 +116,17 @@ struct MenuView: View {
         }
         .buttonStyle(.plain)
         .disabled(!unlocked)
+    }
+}
+
+extension MenuView {
+    func medalColor(_ medal: Medal) -> Color {
+        switch medal {
+        case .gold: return Palette.accent
+        case .silver: return Color(white: 0.82)
+        case .bronze: return Color(red: 0.80, green: 0.52, blue: 0.30)
+        case .none: return .clear
+        }
     }
 }
 
