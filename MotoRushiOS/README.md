@@ -19,11 +19,20 @@ tool of choice.
   medal; a region opens when the previous one is half cleared. Cards show the
   recommended power against your bike's current rating, medals earned, and the
   daily goal sits in the corner.
+- **Weekly Jam** — one solo track seeded from the ISO week, rotating every
+  Monday, with its own personal best and ghost. Sits at the head of the career
+  row.
 - **Race** — gate drop with rider name labels over the pack, then a physics
   race with speedo, live standings, style score and touch controls
-  (throttle, brake, lean back/forward, whip left/right).
-- **Podium** — top three on the blocks, run stats, coins and XP, with the
-  daily goal ticking over.
+  (throttle, brake, lean back/forward, whip left/right). Your best run on each
+  track is recorded and replayed as a translucent **ghost** with a live +/-
+  gap in the HUD; an **instant restart** button rebuilds the race at the gate
+  without leaving the track.
+- **Podium** — top three on the blocks, run stats, coins, XP and the trophy
+  swing, with the daily goal ticking over.
+- **Trophies** — eight divisions (Dirt → Factory). Podium finishes pay,
+  the back of the pack costs, and beating your ghost is worth as much as a
+  win. The division badge sits in the career top bar.
 - **Garage / Rider / Settings** — bikes, six upgrade lines, name and number,
   haptics and landing assist.
 
@@ -45,9 +54,10 @@ loop.
 
 ## Not implemented
 
-Single-player only — no networking, matchmaking or leaderboards. Races are
-one-lap sprints. There is no audio in this build (the browser version has the
-full procedural sound engine).
+Single-player only. Ghosts are your own runs stored on-device — there is no
+server, so no downloading other riders' ghosts, no matchmaking and no global
+leaderboards. Races are one-lap sprints. There is no audio in this build (the
+browser version has the full procedural sound engine).
 
 All content is original. No third-party assets, track layouts, logos or
 branding are used anywhere in this project.
