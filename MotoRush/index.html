@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0c1018" />
+<title>MotoRush — Physics Motocross</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff5d3b'/%3E%3Ctext x='16' y='22' font-size='15' font-family='sans-serif' font-weight='bold' fill='%23111' text-anchor='middle'%3EMR%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ——— Race ——————————————————————————————————————— -->
+  <section id="screen-race" class="screen">
+    <canvas id="canvas"></canvas>
+
+    <div id="hud" class="hud">
+      <div class="hud-top">
+        <div class="hud-chip" id="hud-pos"><span class="lbl">POS</span><span class="val">1/6</span></div>
+        <div class="hud-chip" id="hud-lap"><span class="lbl">LAP</span><span class="val">1/1</span></div>
+        <div class="hud-chip wide" id="hud-time"><span class="lbl">TIME</span><span class="val">0:00.00</span></div>
+        <div class="hud-chip" id="hud-combo"><span class="lbl">STYLE</span><span class="val">0</span></div>
+        <button id="btn-pause" class="icon-btn" aria-label="Pause">❚❚</button>
+      </div>
+
+      <div class="hud-left">
+        <div id="minimap"><canvas id="minimap-canvas" width="360" height="60"></canvas></div>
+        <div id="standings" class="standings"></div>
+      </div>
+
+      <div class="hud-right">
+        <div class="speedo">
+          <svg viewBox="0 0 120 120" class="speedo-svg">
+            <circle cx="60" cy="60" r="52" class="speedo-bg" />
+            <circle cx="60" cy="60" r="52" class="speedo-arc" id="speedo-arc" />
+          </svg>
+          <div class="speedo-num"><span id="speed-val">0</span><small>km/h</small></div>
+          <div class="gear">G<span id="gear-val">1</span></div>
+        </div>
+        <div class="mission-track" id="hud-mission"></div>
+      </div>
+
+      <div id="messages" class="messages"></div>
+      <div id="countdown" class="countdown"></div>
+    </div>
+
+    <!-- Touch controls -->
+    <div id="touch" class="touch">
+      <div class="touch-left">
+        <button class="tbtn lean" data-input="lean" data-value="-1">◀ LEAN BACK</button>
+        <button class="tbtn lean" data-input="lean" data-value="1">LEAN FWD ▶</button>
+        <div class="whip-row">
+          <button class="tbtn whip" data-input="whip" data-value="-1">WHIP L</button>
+          <button class="tbtn whip" data-input="whip" data-value="1">WHIP R</button>
+        </div>
+      </div>
+      <div class="touch-right">
+        <button class="tbtn brake" data-input="brake" data-value="1">BRAKE</button>
+        <button class="tbtn throttle" data-input="throttle" data-value="1">THROTTLE</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ——— Main menu —————————————————————————————————— -->
+  <section id="screen-menu" class="screen active menu">
+    <header class="topbar">
+      <div class="brand"><span class="mark">MR</span><span class="wordmark">MOTO<b>RUSH</b></span></div>
+      <div class="wallet">
+        <div class="pill"><i class="ic coin"></i><span id="coin-val">0</span></div>
+        <div class="pill"><i class="ic gem"></i><span id="gem-val">0</span></div>
+        <button class="pill ghost" id="btn-settings">⚙</button>
+      </div>
+    </header>
+
+    <div class="profile-strip">
+      <div class="lvl-badge"><span id="lvl-val">1</span></div>
+      <div class="lvl-meta">
+        <div class="lvl-name"><span id="player-name">Rider</span> <small id="rank-tier">Bronze</small></div>
+        <div class="xpbar"><div class="xpfill" id="xp-fill"></div></div>
+        <div class="xptext" id="xp-text">0 / 500 XP</div>
+      </div>
+      <div class="streak" id="streak-box"></div>
+    </div>
+
+    <nav class="tiles">
+      <button class="tile hero" data-go="quick">
+        <span class="tile-kicker">RIDE NOW</span>
+        <span class="tile-title">Quick Race</span>
+        <span class="tile-sub">Procedural track · 6 riders</span>
+      </button>
+      <button class="tile" data-go="career"><span class="tile-title">Career</span><span class="tile-sub">Championships &amp; series</span></button>
+      <button class="tile" data-go="timetrial"><span class="tile-title">Time Trial</span><span class="tile-sub">Race your ghost</span></button>
+      <button class="tile" data-go="ranked"><span class="tile-title">Ranked</span><span class="tile-sub" id="ranked-sub">Bronze · 900</span></button>
+      <button class="tile" data-go="garage"><span class="tile-title">Garage</span><span class="tile-sub">Bikes &amp; upgrades</span></button>
+      <button class="tile" data-go="customize"><span class="tile-title">Customize</span><span class="tile-sub">Rider &amp; bike style</span></button>
+      <button class="tile" data-go="tracks"><span class="tile-title">Tracks</span><span class="tile-sub">240 seeded circuits</span></button>
+      <button class="tile" data-go="missions"><span class="tile-title">Missions</span><span class="tile-sub">Daily &amp; weekly</span></button>
+      <button class="tile" data-go="season"><span class="tile-title">Season Pass</span><span class="tile-sub" id="season-sub">Tier 0 / 30</span></button>
+      <button class="tile" data-go="records"><span class="tile-title">Records</span><span class="tile-sub">Times &amp; achievements</span></button>
+    </nav>
+    <footer class="foot">Original game · no third-party assets · WASD/Arrows, gamepad or touch</footer>
+  </section>
+
+  <!-- ——— Generic panel screen ————————————————————————— -->
+  <section id="screen-panel" class="screen panel">
+    <header class="topbar">
+      <button class="pill ghost" id="btn-back">← Back</button>
+      <h2 id="panel-title">Panel</h2>
+      <div class="wallet">
+        <div class="pill"><i class="ic coin"></i><span class="coin-val">0</span></div>
+        <div class="pill"><i class="ic gem"></i><span class="gem-val">0</span></div>
+      </div>
+    </header>
+    <div id="panel-body" class="panel-body"></div>
+  </section>
+
+  <!-- ——— Pause ——————————————————————————————————— -->
+  <div id="pause" class="overlay">
+    <div class="card">
+      <h3>Paused</h3>
+      <div class="stack">
+        <button class="btn primary" data-pause="resume">Resume</button>
+        <button class="btn" data-pause="restart">Restart</button>
+        <button class="btn" data-pause="settings">Settings</button>
+        <button class="btn danger" data-pause="quit">Quit to Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ——— Results —————————————————————————————————— -->
+  <div id="results" class="overlay">
+    <div class="card wide" id="results-card"></div>
+  </div>
+
+  <!-- ——— Toasts ——————————————————————————————————— -->
+  <div id="toasts" class="toasts"></div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
