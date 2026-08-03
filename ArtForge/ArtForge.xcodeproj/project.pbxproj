@@ -14,6 +14,7 @@
 		4D0000000000000000000005 /* Renderers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000005 /* Renderers.swift */; };
 		4D0000000000000000000006 /* ArtGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000006 /* ArtGenerator.swift */; };
 		4D0000000000000000000007 /* GalleryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000007 /* GalleryStore.swift */; };
+		4D0000000000000000000008 /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000008 /* Scene.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,7 @@
 		4C0000000000000000000005 /* Renderers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Renderers.swift; sourceTree = "<group>"; };
 		4C0000000000000000000006 /* ArtGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtGenerator.swift; sourceTree = "<group>"; };
 		4C0000000000000000000007 /* GalleryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryStore.swift; sourceTree = "<group>"; };
+		4C0000000000000000000008 /* Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,6 +57,7 @@
 				4C0000000000000000000005 /* Renderers.swift */,
 				4C0000000000000000000006 /* ArtGenerator.swift */,
 				4C0000000000000000000007 /* GalleryStore.swift */,
+				4C0000000000000000000008 /* Scene.swift */,
 				4C0000000000000000000004 /* Assets.xcassets */,
 			);
 			path = ArtForge;
@@ -140,6 +143,7 @@
 				4D0000000000000000000003 /* Core.swift in Sources */,
 				4D0000000000000000000002 /* ContentView.swift in Sources */,
 				4D0000000000000000000001 /* ArtForgeApp.swift in Sources */,
+				4D0000000000000000000008 /* Scene.swift in Sources */,
 				4D0000000000000000000005 /* Renderers.swift in Sources */,
 				4D0000000000000000000006 /* ArtGenerator.swift in Sources */,
 				4D0000000000000000000007 /* GalleryStore.swift in Sources */,

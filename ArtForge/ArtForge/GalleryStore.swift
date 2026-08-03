@@ -9,7 +9,7 @@ import SwiftUI
 final class GalleryStore: ObservableObject {
 
     @Published var prompt: String = ""
-    @Published var style: ArtStyle = .flowField
+    @Published var style: ArtStyle = .scene
     @Published var seed: UInt64 = UInt64.random(in: 0...UInt64.max)
 
     @Published private(set) var current: UIImage?
@@ -69,7 +69,7 @@ final class GalleryStore: ObservableObject {
     }
 
     func randomizeEverything() {
-        style = ArtStyle.allCases.randomElement() ?? .flowField
+        style = ArtStyle.allCases.randomElement() ?? .scene
         seed = UInt64.random(in: 0...UInt64.max)
         generate()
     }

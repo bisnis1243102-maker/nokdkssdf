@@ -4,6 +4,7 @@ import UIKit
 /// The available render engines. Each one is a genuinely different algorithm,
 /// not a filter over the same base image.
 enum ArtStyle: String, CaseIterable, Identifiable, Codable {
+    case scene
     case flowField
     case nebula
     case shards
@@ -15,6 +16,7 @@ enum ArtStyle: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
+        case .scene:     return "Scene"
         case .flowField: return "Flow"
         case .nebula:    return "Nebula"
         case .shards:    return "Shards"
@@ -26,6 +28,7 @@ enum ArtStyle: String, CaseIterable, Identifiable, Codable {
 
     var symbol: String {
         switch self {
+        case .scene:     return "photo"
         case .flowField: return "wind"
         case .nebula:    return "sparkles"
         case .shards:    return "diamond"
@@ -37,6 +40,7 @@ enum ArtStyle: String, CaseIterable, Identifiable, Codable {
 
     var blurb: String {
         switch self {
+        case .scene:     return "A landscape painted from the words in your prompt"
         case .flowField: return "Thousands of particles drifting through a turbulent field"
         case .nebula:    return "Layered clouds of light, rendered pixel by pixel"
         case .shards:    return "Fractured planes of colour with hard, clean edges"

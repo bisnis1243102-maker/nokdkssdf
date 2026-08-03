@@ -184,11 +184,18 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 1)
             }
-            Text(store.style.blurb)
+            Text(understoodText ?? store.style.blurb)
                 .font(.caption)
-                .foregroundColor(Theme.secondaryText)
+                .foregroundColor(understoodText == nil ? Theme.secondaryText : Theme.accent)
                 .padding(.horizontal, 2)
         }
+    }
+
+    /// For the Scene engine, spell out what the prompt was read as — it makes
+    /// the connection between the words and the picture obvious.
+    private var understoodText: String? {
+        guard let recipe = store.currentRecipe, let summary = ArtGenerator.sceneSummary(for: recipe) else { return nil }
+        return "Read as: " + summary
     }
 
     // MARK: Actions

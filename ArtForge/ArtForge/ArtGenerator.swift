@@ -21,12 +21,26 @@ enum ArtGenerator {
     /// displays while staying fast enough to feel instant-ish on device.
     static let exportSize: CGFloat = 1600
 
+    /// The prompt, style, and seed folded together so that changing any one of
+    /// them changes everything downstream.
+    private static func combinedSeed(_ recipe: ArtRecipe) -> UInt64 {
+        stableHash(recipe.prompt) ^ (recipe.seed &* 0x9E3779B97F4A7C15) ^ stableHash(recipe.style.rawValue)
+    }
+
+    /// What the scene renderer read out of the prompt, for display under the
+    /// image. Mirrors `render`'s use of the generator exactly so the summary
+    /// always describes the picture actually on screen.
+    static func sceneSummary(for recipe: ArtRecipe) -> String? {
+        guard recipe.style == .scene else { return nil }
+        var rng = SeededRandom(seed: combinedSeed(recipe))
+        _ = Palette.generate(rng: &rng)
+        return SceneSpec.parse(prompt: recipe.prompt, rng: &rng).caption
+    }
+
     /// Renders a recipe into a finished image. Pure and thread-safe — call it
     /// off the main queue.
     static func render(_ recipe: ArtRecipe, size: CGFloat = exportSize) -> UIImage {
-        // The prompt, style, and seed are folded together so that changing any
-        // one of them changes everything downstream.
-        let combined = stableHash(recipe.prompt) ^ (recipe.seed &* 0x9E3779B97F4A7C15) ^ stableHash(recipe.style.rawValue)
+        let combined = combinedSeed(recipe)
         var rng = SeededRandom(seed: combined)
         let noise = Noise(seed: combined ^ 0xD1B54A32D192ED03)
         let palette = Palette.generate(rng: &rng)
@@ -44,6 +58,10 @@ enum ArtGenerator {
             ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
 
             switch recipe.style {
+            case .scene:
+                let spec = SceneSpec.parse(prompt: recipe.prompt, rng: &rng)
+                SceneRenderer.render(ctx: ctx, size: size, spec: spec, rng: &rng, noise: noise)
+
             case .flowField:
                 backdrop(ctx: ctx, size: size, palette: palette, rng: &rng)
                 Renderers.flowField(ctx: ctx, size: size, palette: palette, rng: &rng, noise: noise)
@@ -70,9 +88,10 @@ enum ArtGenerator {
                 Renderers.bloom(ctx: ctx, size: size, palette: palette, rng: &rng, noise: noise)
             }
 
-            // A shared finishing pass is what makes six unrelated algorithms
-            // look like they came out of the same studio.
-            vignette(ctx: ctx, size: size, palette: palette, strength: rng.next(0.18...0.42))
+            // A shared finishing pass is what makes the engines look like they
+            // came out of the same studio.
+            let vignetteStrength = recipe.style == .scene ? rng.next(0.1...0.22) : rng.next(0.18...0.42)
+            vignette(ctx: ctx, size: size, palette: palette, strength: vignetteStrength)
             grain(ctx: ctx, size: size, rng: &rng, amount: rng.next(0.03...0.075))
         }
     }
