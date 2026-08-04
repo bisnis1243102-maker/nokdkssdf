@@ -136,8 +136,8 @@ export class Renderer {
       const par = 0.04 + layer * 0.07;
       const amp = canvas.height * (0.05 + layer * 0.035);
       const baseY = canvas.height * (0.52 + layer * 0.045);
-      ctx.fillStyle = shade(b.ground, 0.5 - layer * 0.14);
-      ctx.globalAlpha = 0.55 + layer * 0.15;
+      ctx.fillStyle = shade(b.ground, 0.62 - layer * 0.16);
+      ctx.globalAlpha = 0.5 + layer * 0.13;
       ctx.beginPath();
       ctx.moveTo(0, canvas.height);
       const off = cam.x * cam.zoom * par;
@@ -159,12 +159,19 @@ export class Renderer {
     const y = canvas.height * 0.5;
     ctx.fillStyle = 'rgba(20,24,44,0.9)';
     ctx.fillRect(0, y - canvas.height * 0.18, canvas.width, canvas.height * 0.22);
-    // Crowd speckle.
-    for (let i = 0; i < 400; i++) {
-      const x = ((i * 971.3 + cam.x * 2) % canvas.width + canvas.width) % canvas.width;
-      const yy = y - canvas.height * 0.18 + ((i * 313.7) % (canvas.height * 0.2));
-      ctx.fillStyle = `hsla(${(i * 53) % 360},60%,60%,0.5)`;
-      ctx.fillRect(x, yy, 2.4, 2.4);
+    // Crowd speckle. Stepping i through two constants and taking the modulus
+    // lands on a regular lattice, which reads as diagonal scratches rather
+    // than people, so the positions come from a hash instead.
+    const hash = (n) => {
+      const v = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+      return v - Math.floor(v);
+    };
+    const standTop = y - canvas.height * 0.18;
+    for (let i = 0; i < 500; i++) {
+      const x = ((hash(i) * canvas.width * 1.4 + cam.x * 1.5) % canvas.width + canvas.width) % canvas.width;
+      const yy = standTop + hash(i + 0.5) * canvas.height * 0.2;
+      ctx.fillStyle = `hsla(${Math.floor(hash(i + 0.25) * 360)},55%,${45 + hash(i + 0.75) * 25}%,0.55)`;
+      ctx.fillRect(x, yy, 2.6, 2.6);
     }
     // Light rigs.
     for (let i = 0; i < 5; i++) {
@@ -204,15 +211,33 @@ export class Renderer {
     g.addColorStop(1, b.groundDeep);
     ctx.fillStyle = g; ctx.fill();
 
+    // Top-soil band: a darker strip just under the surface. Without it the
+    // ground reads as one flat mass and the jump profiles disappear against
+    // the parallax hills behind them.
+    ctx.beginPath(); first = true;
+    for (let x = left; x <= right; x += stepW) {
+      const p = cam.toScreen(x, track.heightAt(x), canvas);
+      if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+    }
+    for (let x = right; x >= left; x -= stepW) {
+      const p = cam.toScreen(x, track.heightAt(x) - 0.55, canvas);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = shade(b.groundDeep, -0.25);
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
     // Surface highlight line (loam lip / snow crust / lava crust).
     ctx.beginPath(); first = true;
     for (let x = left; x <= right; x += stepW) {
       const p = cam.toScreen(x, track.heightAt(x), canvas);
       if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
     }
-    ctx.strokeStyle = b.accent;
-    ctx.lineWidth = Math.max(1.5, cam.zoom * 0.07);
-    ctx.globalAlpha = b.glow ? 0.9 : 0.65;
+    ctx.strokeStyle = shade(b.accent, 0.25);
+    ctx.lineWidth = Math.max(2.5, cam.zoom * 0.13);
+    ctx.globalAlpha = b.glow ? 0.95 : 0.9;
     if (b.glow) { ctx.shadowBlur = 14; ctx.shadowColor = b.accent; }
     ctx.stroke();
     ctx.shadowBlur = 0; ctx.globalAlpha = 1;
