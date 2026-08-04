@@ -313,14 +313,42 @@ final class Race3DController: NSObject, SCNSceneRendererDelegate {
 
     private var biome: Biome { engine.track.biome }
 
+    /// A vertical sky gradient, used as both the backdrop and the image-based
+    /// light. Tall and narrow: SceneKit treats a plain image as equirectangular,
+    /// so a single column of colour gives a clean zenith-to-horizon ramp with
+    /// no seam.
+    private static func skyGradient(top: UIColor, bottom: UIColor) -> UIImage {
+        let size = CGSize(width: 4, height: 256)
+        return UIGraphicsImageRenderer(size: size).image { ctx in
+            let cg = ctx.cgContext
+            guard let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                     colors: [top.cgColor, bottom.cgColor] as CFArray,
+                                     locations: [0, 1]) else { return }
+            cg.drawLinearGradient(g, start: .zero,
+                                  end: CGPoint(x: 0, y: size.height), options: [])
+        }
+    }
+
     private func buildWorld() {
         let track = engine.track
 
         // Sky and depth fog.
-        scene.background.contents = UIColor(Color(hex: biome.skyBottom))
+        //
+        // The gradient is used twice, and the second use is the important one.
+        // Every surface in this scene is `.physicallyBased`, and a PBR material
+        // in SceneKit is lit almost entirely by the lighting environment: with
+        // none set, an analytic sun alone leaves the terrain rendering nearly
+        // black no matter how bright the light is. Feeding the sky in as the
+        // environment is what actually lights the world.
+        let sky = Self.skyGradient(top: UIColor(Color(hex: biome.skyTop)),
+                                   bottom: UIColor(Color(hex: biome.skyBottom)))
+        scene.background.contents = sky
+        scene.lightingEnvironment.contents = sky
+        scene.lightingEnvironment.intensity = biome.night ? 0.75 : 1.9
+
         scene.fogColor = UIColor(Color(hex: biome.skyBottom))
-        scene.fogStartDistance = 60
-        scene.fogEndDistance = 320
+        scene.fogStartDistance = 90
+        scene.fogEndDistance = 340
         scene.fogDensityExponent = 1.4
 
         // Terrain. Three bands in one geometry, in the order TerrainBuilder
@@ -353,6 +381,7 @@ final class Race3DController: NSObject, SCNSceneRendererDelegate {
         terrainNode.castsShadow = false
         scene.rootNode.addChildNode(terrainNode)
 
+        buildBackdrop()
         buildProps()
         buildGate()
         buildLighting()
@@ -375,6 +404,81 @@ final class Race3DController: NSObject, SCNSceneRendererDelegate {
 
         camX = Float(engine.player.x)
         camY = Float(engine.player.y)
+    }
+
+    /// Ridges standing far behind the track, in three layers.
+    ///
+    /// Without them the horizon is empty sky and the race reads as a ribbon
+    /// floating in a void. Each layer sits further back and is mixed further
+    /// toward the sky colour, which is the aerial perspective that makes the
+    /// distance feel deep. They are `.constant` — flat silhouettes, deliberately
+    /// unlit, so they stay quiet behind the lit track rather than competing
+    /// with it, and cost nothing to shade.
+    private func buildBackdrop() {
+        let track = engine.track
+        let skyColor = UIColor(Color(hex: biome.skyBottom))
+        let rock = UIColor(Color(hex: biome.groundDeep))
+
+        // Deterministic from the track seed, so a given track always gets the
+        // same skyline.
+        var state = UInt32(truncatingIfNeeded: track.seed &+ 0x9E37)
+        func noise() -> Float {
+            state = state &* 1664525 &+ 1013904223
+            return Float(state >> 8) / Float(1 << 24)
+        }
+
+        for (layer, spec) in [(z: Float(-70), height: Float(26), mix: CGFloat(0.45)),
+                              (z: Float(-120), height: Float(40), mix: CGFloat(0.65)),
+                              (z: Float(-190), height: Float(58), mix: CGFloat(0.82))].enumerated() {
+            let stepX: Float = 26 + Float(layer) * 12
+            let baseY = Float(track.height(at: 0)) - 12
+
+            var verts: [SCNVector3] = []
+            var idx: [Int32] = []
+            var x: Float = -160
+            var col = 0
+            // A little beyond the finish so the skyline never runs out.
+            while x < Float(track.length) + 220 {
+                let ridge = baseY + spec.height * (0.45 + 0.55 * noise())
+                verts.append(SCNVector3(x, ridge, spec.z))
+                verts.append(SCNVector3(x, baseY - 80, spec.z))
+                if col > 0 {
+                    let a = Int32((col - 1) * 2)
+                    idx.append(contentsOf: [a, a + 1, a + 2, a + 2, a + 1, a + 3])
+                }
+                col += 1
+                x += stepX
+            }
+
+            let src = SCNGeometrySource(vertices: verts)
+            let data = Data(bytes: idx, count: idx.count * MemoryLayout<Int32>.size)
+            let element = SCNGeometryElement(data: data, primitiveType: .triangles,
+                                             primitiveCount: idx.count / 3,
+                                             bytesPerIndex: MemoryLayout<Int32>.size)
+            let geo = SCNGeometry(sources: [src], elements: [element])
+
+            let m = SCNMaterial()
+            m.lightingModel = .constant
+            m.diffuse.contents = Self.blend(rock, into: skyColor, amount: spec.mix)
+            m.isDoubleSided = true
+            geo.materials = [m]
+
+            let node = SCNNode(geometry: geo)
+            node.castsShadow = false
+            scene.rootNode.addChildNode(node)
+        }
+    }
+
+    /// Mix a colour toward another. Used for aerial perspective on the ridges.
+    private static func blend(_ c: UIColor, into other: UIColor, amount: CGFloat) -> UIColor {
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        guard c.getRed(&r1, green: &g1, blue: &b1, alpha: &a1),
+              other.getRed(&r2, green: &g2, blue: &b2, alpha: &a2) else { return c }
+        let t = max(0, min(1, amount))
+        return UIColor(red: r1 + (r2 - r1) * t,
+                       green: g1 + (g2 - g1) * t,
+                       blue: b1 + (b2 - b1) * t, alpha: 1)
     }
 
     private func buildProps() {
@@ -411,6 +515,11 @@ final class Race3DController: NSObject, SCNSceneRendererDelegate {
                 SCNNode(geometry: SCNBox(width: 0.3, height: 5, length: 9, chamferRadius: 0))
             }
             node.position = SCNVector3(Float(x), Float(track.height(at: x)), 0)
+            // The gantry straddles the track, so one leg is always on the
+            // camera's side of it. At the model's own width that leg lands in
+            // the middle of the frame and hides the start; widening it puts
+            // both legs out at the edges with the banner spanning between.
+            node.scale = SCNVector3(1, 1, 1.8)
             node.enumerateHierarchy { child, _ in
                 child.geometry?.materials.forEach { m in
                     if m.name == "Cloth" { m.diffuse.contents = tint }
