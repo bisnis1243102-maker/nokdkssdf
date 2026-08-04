@@ -13,3 +13,7 @@ DerivedData/
 # Swift Package Manager
 .swiftpm/
 .build/
+
+# Python bytecode from the Blender tooling
+__pycache__/
+*.pyc
