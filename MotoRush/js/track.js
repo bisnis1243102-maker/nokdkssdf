@@ -19,11 +19,28 @@ export const STEP = 0.4; // metres between height samples
 const lerp = (a, b, t) => a + (b - a) * t;
 const smooth = (t) => t * t * (3 - 2 * t);
 
+// Geometry the generator is not allowed to exceed, because the severity
+// multiplier used to scale features without any bound on the *slope* that
+// resulted — a "roller" could come out at 49°, and terrain climbing under the
+// wheel that fast launches the bike far beyond anything a rider could produce.
+const MAX_FACE_SLOPE = 0.62;    // ~32°, the steepest face on whoops/rollers
+const MAX_LAUNCH_SLOPE = 0.45;  // ~24°, the steepest lip a jump may leave from
+
+// How steeply each ramp shape exits at its top. `smooth` flattens out, so it
+// never launches; the other two do.
+const EXIT_SLOPE_FACTOR = { smooth: 0, kicker: 1.3, linear: 1.0 };
+
 // ——— Feature builders ———————————————————————————————————————————————
 // Each builder appends samples to `pts` (absolute heights) and returns the
 // feature descriptor so the AI/renderer know what is coming.
 
 function pushRamp(pts, base, len, rise, shape = 'smooth') {
+  // Lengthen a takeoff rather than shortening it, which is what a real track
+  // crew does: the jump keeps its height, the lip just stops being a launcher.
+  const factor = EXIT_SLOPE_FACTOR[shape] ?? 1;
+  if (rise > 0 && factor > 0) {
+    len = Math.max(len, (factor * rise) / MAX_LAUNCH_SLOPE);
+  }
   const n = Math.max(2, Math.round(len / STEP));
   for (let i = 1; i <= n; i++) {
     const t = i / n;
@@ -40,6 +57,9 @@ function pushFlat(pts, base, len) {
 }
 
 function pushWhoops(pts, base, count, amp, spacing) {
+  // Peak slope of this profile is amp*PI/spacing; hold it to a face a rider
+  // could actually ride rather than a wall.
+  amp = Math.min(amp, (MAX_FACE_SLOPE * spacing) / Math.PI);
   const total = count * spacing;
   const n = Math.round(total / STEP);
   for (let i = 1; i <= n; i++) {
@@ -60,6 +80,7 @@ function pushBerm(pts, base, len, depth) {
 }
 
 function pushRollers(pts, base, count, amp, spacing) {
+  amp = Math.min(amp, (MAX_FACE_SLOPE * spacing) / Math.PI);
   const n = Math.round((count * spacing) / STEP);
   for (let i = 1; i <= n; i++) {
     const x = i * STEP;
@@ -220,9 +241,11 @@ export function generateTrack(opts = {}) {
       }
     }
 
-    // Gentle drift keeps long tracks from becoming a flat ribbon.
-    base += (rnd() - 0.5) * 0.6 * biome.rolling;
-    base = pushFlat(pts, base, lerp(2, 6, rnd()));
+    // Gentle drift keeps long tracks from becoming a flat ribbon. Ramp it over
+    // the connector instead of stepping the base and then running flat, which
+    // left a vertical curb at every feature boundary.
+    const drift = (rnd() - 0.5) * 0.6 * biome.rolling;
+    base = pushRamp(pts, base, lerp(2, 6, rnd()), drift, 'smooth');
     x = (pts.length - 1) * STEP;
   }
 

@@ -10,6 +10,10 @@
 // Units: metres, kilograms, seconds. +Y is up.
 
 const GRAV = 9.81;
+// Bounds that keep the suspension solver from injecting energy. Neither binds
+// during normal riding; they only cut off the numerical blow-ups.
+const SHAFT_V_MAX = 6;    // m/s of shock shaft travel
+const MAX_WHEEL_G = 8;    // peak normal force per wheel, in g
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -113,6 +117,20 @@ export class Bike {
     this.step(dt, { throttle: 0, brake: 0.35, lean: 0, whip: 0 }, {});
   }
 
+  /** The height the tyre actually rides at over `px`.
+   *
+   *  A tyre is not a point. Sampling the terrain at a single x lets the wheel
+   *  drop into the notch between two whoops and then get slammed by the next
+   *  face, which is where the solver was finding the energy to throw the bike
+   *  20 m into the air. Taking the highest ground across the contact patch
+   *  makes the wheel ride the crests, which is what a real 21-inch front does. */
+  groundUnder(px) {
+    const r = this.wheelR * 0.75;
+    const t = this.track;
+    const a = t.heightAt(px - r), b = t.heightAt(px), c = t.heightAt(px + r);
+    return a > b ? (a > c ? a : c) : (b > c ? b : c);
+  }
+
   step(dt, input, opts) {
     const track = this.track;
     this.fx = 0; this.fy = -this.mass * GRAV; this.torque = 0;
@@ -146,14 +164,14 @@ export class Bike {
       for (let i = 1; i <= N; i++) {
         const t = (maxLen * i) / N;
         const px = ax + downX * t, py = ay + downY * t;
-        if (py - this.wheelR <= track.heightAt(px)) {
+        if (py - this.wheelR <= this.groundUnder(px)) {
           // Bisect for a smooth contact length — coarse steps make the
           // suspension chatter on steep faces.
           let lo = (maxLen * (i - 1)) / N, hi = t;
           for (let k = 0; k < 8; k++) {
             const m = (lo + hi) * 0.5;
             const my = ay + downY * m, mx = ax + downX * m;
-            if (my - this.wheelR <= track.heightAt(mx)) hi = m; else lo = m;
+            if (my - this.wheelR <= this.groundUnder(mx)) hi = m; else lo = m;
           }
           hit = hi;
           break;
@@ -174,10 +192,21 @@ export class Bike {
         continue;
       }
 
+      const wasGrounded = w.grounded;
       anyGround = true;
       w.grounded = true;
       w.len = hit;
-      w.vel = (w.len - prevLen) / dt;
+      // Shaft speed. Differencing the length is correct while the wheel stays
+      // planted, but on the first frame of contact `prevLen` is the free-droop
+      // length, so the difference is a fictitious hundred-metres-per-second of
+      // compression. Fed to the damper that became the force spike that fired
+      // the bike out of whoops backwards at 20 m/s. On touchdown, use the
+      // chassis's actual closing speed along the suspension axis instead.
+      const closing = -(this.vx * downX + this.vy * downY);
+      w.vel = wasGrounded ? (w.len - prevLen) / dt : closing;
+      // A real shock shaft does not move faster than this either way, and the
+      // cap keeps a single steep sample from dominating the damper.
+      w.vel = clamp(w.vel, -SHAFT_V_MAX, SHAFT_V_MAX);
       w.cx = ax + downX * w.len; w.cy = ay + downY * w.len;
 
       const compression = clamp(this.rest - w.len, -this.spec.travel, this.spec.travel * 1.2);
@@ -185,19 +214,28 @@ export class Bike {
       // Damping is asymmetric: stiffer in rebound, like a real shock.
       const damp = w.vel > 0 ? this.susDamp * 0.7 : this.susDamp * 1.25;
       let normalF = this.susStiff * compression - damp * w.vel + bottomOut;
-      normalF = clamp(normalF, 0, 60000);
+      // Ceiling expressed in g rather than as a flat newton figure: 60 kN on a
+      // ~100 kg bike is 60 g through one wheel, and a few substeps of that is
+      // an ejection, not a landing. A violent-but-real landing is a handful of
+      // g, so this bounds the solver without touching normal riding.
+      normalF = clamp(normalF, 0, this.mass * GRAV * MAX_WHEEL_G);
       w.load = normalF;
 
       // Weight transfer: shifting the rider's mass biases the static load.
       const bias = w.drive ? 1 - this.lean * 0.55 : 1 + this.lean * 0.55;
       normalF *= clamp(bias, 0.15, 1.9);
 
-      this.applyForce(-downX * normalF, -downY * normalF, w.cx, w.cy);
-
-      // Contact tangent from the terrain slope.
+      // Contact tangent and normal from the terrain slope.
       const slope = track.slopeAt(w.cx);
       const tl = Math.hypot(1, slope);
       const tx = 1 / tl, ty = slope / tl;
+
+      // The spring force goes along the *ground's* normal, not the chassis's
+      // own down-axis. Ground can only push away from itself. Using the
+      // chassis axis meant that once the bike pitched past vertical the "down"
+      // axis was nearly horizontal, the ray fired into the hillside ahead, and
+      // the spring catapulted a looped-out bike backwards uphill at 18 m/s.
+      this.applyForce(-ty * normalF, tx * normalF, w.cx, w.cy);
 
       // Velocity of the contact point.
       const rx = w.cx - this.x, ry = w.cy - this.y;
