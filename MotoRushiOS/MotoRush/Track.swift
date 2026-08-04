@@ -121,6 +121,13 @@ struct Prop {
 final class Track {
     static let step: Double = 0.4
 
+    // Geometry the generator is not allowed to exceed. The severity multiplier
+    // used to scale features without any bound on the *slope* that resulted — a
+    // "roller" could come out at 49 degrees, and terrain climbing under the
+    // wheel that fast launches the bike far beyond anything a rider could do.
+    static let maxFaceSlope: Double = 0.62    // ~32 degrees, whoops/rollers
+    static let maxLaunchSlope: Double = 0.45  // ~24 degrees, steepest jump lip
+
     let seed: UInt32
     let biome: Biome
     let difficulty: Double
@@ -149,6 +156,15 @@ final class Track {
             for _ in 0..<n { pts.append(base) }
         }
         func pushRamp(_ len: Double, _ rise: Double, _ shape: String) {
+            // How steeply each shape exits at its top. `smooth` flattens out, so
+            // it never launches; the other two do. Lengthen a takeoff rather
+            // than shortening it, which is what a real track crew does: the jump
+            // keeps its height, the lip just stops being a launcher.
+            var len = len
+            let factor: Double = shape == "kicker" ? 1.3 : (shape == "linear" ? 1.0 : 0)
+            if rise > 0 && factor > 0 {
+                len = max(len, (factor * rise) / Track.maxLaunchSlope)
+            }
             let n = max(2, Int((len / Track.step).rounded()))
             for i in 1...n {
                 let t = Double(i) / Double(n)
@@ -163,6 +179,9 @@ final class Track {
             base += rise
         }
         func pushWhoops(_ count: Int, _ amp: Double, _ spacing: Double) {
+            // Peak slope of this profile is amp*pi/spacing; hold it to a face a
+            // rider could actually ride rather than a wall.
+            let amp = min(amp, (Track.maxFaceSlope * spacing) / .pi)
             let n = Int((Double(count) * spacing / Track.step).rounded())
             for i in 1...max(1, n) {
                 let x = Double(i) * Track.step
@@ -170,6 +189,7 @@ final class Track {
             }
         }
         func pushRollers(_ count: Int, _ amp: Double, _ spacing: Double) {
+            let amp = min(amp, (Track.maxFaceSlope * spacing) / .pi)
             let n = Int((Double(count) * spacing / Track.step).rounded())
             for i in 1...max(1, n) {
                 let x = Double(i) * Track.step
@@ -292,8 +312,10 @@ final class Track {
             }
 
             features.append(TrackFeature(kind: kind, x: startX, len: cursor() - startX, risk: risk))
-            base += (rnd.next() - 0.5) * 0.6 * biome.rolling
-            pushFlat(rnd.range(2, 6))
+            // Ramp the drift over the connector instead of stepping the base
+            // and then running flat, which left a vertical curb at every
+            // feature boundary.
+            pushRamp(rnd.range(2, 6), (rnd.next() - 0.5) * 0.6 * biome.rolling, "smooth")
         }
 
         pushFlat(40)

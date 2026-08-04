@@ -11,6 +11,10 @@ import Foundation
 // Units: metres, kilograms, seconds. +Y is up.
 
 let GRAV: Double = 9.81
+// Bounds that keep the suspension solver from injecting energy. Neither binds
+// during normal riding; they only cut off the numerical blow-ups.
+let SHAFT_V_MAX: Double = 6    // m/s of shock shaft travel
+let MAX_WHEEL_G: Double = 8    // peak normal force per wheel, in g
 
 func wrapAngle(_ a: Double) -> Double {
     var v = a
@@ -156,6 +160,19 @@ final class Bike {
         return (x + lx * c - ly * s, y + lx * s + ly * c)
     }
 
+    /// The height the tyre actually rides at over `px`.
+    ///
+    /// A tyre is not a point. Sampling the terrain at a single x lets the wheel
+    /// drop into the notch between two whoops and then get slammed by the next
+    /// face, which is where the solver was finding the energy to throw the bike
+    /// twenty metres into the air. Taking the highest ground across the contact
+    /// patch makes the wheel ride the crests, as a real front wheel does.
+    private func groundUnder(_ px: Double) -> Double {
+        let r = wheelR * 0.75
+        return max(track.height(at: px - r),
+                   max(track.height(at: px), track.height(at: px + r)))
+    }
+
     private func applyForce(_ fxv: Double, _ fyv: Double, _ px: Double, _ py: Double) {
         fx += fxv; fy += fyv
         torque += (px - x) * fyv - (py - y) * fxv
@@ -199,12 +216,12 @@ final class Bike {
                 let t = maxLen * Double(j) / Double(N)
                 let py = ay + downY * t
                 let px = ax + downX * t
-                if py - wheelR <= track.height(at: px) {
+                if py - wheelR <= groundUnder(px) {
                     var lo = maxLen * Double(j - 1) / Double(N)
                     var hi = t
                     for _ in 0..<8 {
                         let m = (lo + hi) * 0.5
-                        if (ay + downY * m) - wheelR <= track.height(at: ax + downX * m) { hi = m } else { lo = m }
+                        if (ay + downY * m) - wheelR <= groundUnder(ax + downX * m) { hi = m } else { lo = m }
                     }
                     hit = hi
                     break
@@ -225,27 +242,45 @@ final class Bike {
                 continue
             }
 
+            let wasGrounded = w.grounded
             anyGround = true
             w.grounded = true
             w.len = hit
-            w.vel = (w.len - prevLen) / dt
+            // Differencing the length is correct while the wheel stays planted,
+            // but on the first frame of contact `prevLen` is the free-droop
+            // length, so the difference is a fictitious hundred metres per
+            // second of compression straight into the damper. On touchdown use
+            // the chassis's actual closing speed along the suspension axis.
+            let closing = -(vx * downX + vy * downY)
+            w.vel = clampd(wasGrounded ? (w.len - prevLen) / dt : closing,
+                           -SHAFT_V_MAX, SHAFT_V_MAX)
             w.cx = ax + downX * w.len
             w.cy = ay + downY * w.len
 
             let compression = clampd(rest - w.len, -spec.travel, spec.travel * 1.2)
             let bottomOut = compression > spec.travel * 0.95 ? (compression - spec.travel * 0.95) * 90000 : 0
             let damp = w.vel > 0 ? susDamp * 0.7 : susDamp * 1.25
-            var normalF = clampd(susStiff * compression - damp * w.vel + bottomOut, 0, 60000)
+            // Ceiling expressed in g rather than as a flat newton figure: 60 kN
+            // on a ~100 kg bike is 60 g through one wheel, and a few substeps
+            // of that is an ejection, not a landing.
+            var normalF = clampd(susStiff * compression - damp * w.vel + bottomOut,
+                                 0, mass * GRAV * MAX_WHEEL_G)
             w.load = normalF
 
             let bias = w.drive ? 1 - lean * 0.55 : 1 + lean * 0.55
             normalF *= clampd(bias, 0.15, 1.9)
 
-            applyForce(-downX * normalF, -downY * normalF, w.cx, w.cy)
-
             let slope = track.slope(at: w.cx)
             let tl = (1 + slope * slope).squareRoot()
             let tx = 1 / tl, ty = slope / tl
+
+            // The spring force goes along the *ground's* normal, not the
+            // chassis's own down-axis. Ground can only push away from itself.
+            // Using the chassis axis meant that once the bike pitched past
+            // vertical that axis was nearly horizontal, the ray fired into the
+            // hillside ahead, and the spring catapulted a looped-out bike
+            // backwards uphill.
+            applyForce(-ty * normalF, tx * normalF, w.cx, w.cy)
 
             let rx = w.cx - x, ry = w.cy - y
             let pvx = vx - angVel * ry
