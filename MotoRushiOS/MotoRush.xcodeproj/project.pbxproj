@@ -16,10 +16,11 @@
 		4D0000000000000000000007 /* AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000007 /* AI.swift */; };
 		4D0000000000000000000008 /* RaceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000008 /* RaceEngine.swift */; };
 		4D0000000000000000000009 /* Race3D.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000009 /* Race3D.swift */; };
-		4D0000000000000000000010 /* RaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000010 /* RaceView.swift */; };
-		4D0000000000000000000011 /* CareerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000011 /* CareerView.swift */; };
-		4D0000000000000000000012 /* PodiumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000012 /* PodiumView.swift */; };
-		4D0000000000000000000013 /* GarageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000013 /* GarageView.swift */; };
+		4D0000000000000000000010 /* Showcase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000010 /* Showcase.swift */; };
+		4D0000000000000000000011 /* RaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000011 /* RaceView.swift */; };
+		4D0000000000000000000012 /* CareerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000012 /* CareerView.swift */; };
+		4D0000000000000000000013 /* PodiumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000013 /* PodiumView.swift */; };
+		4D0000000000000000000014 /* GarageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000014 /* GarageView.swift */; };
 		4D0000000000000000000090 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000090 /* Assets.xcassets */; };
 		4D0000000000000000000091 /* Art in Resources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000091 /* Art */; };
 /* End PBXBuildFile section */
@@ -34,10 +35,11 @@
 		4C0000000000000000000007 /* AI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI.swift; sourceTree = "<group>"; };
 		4C0000000000000000000008 /* RaceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceEngine.swift; sourceTree = "<group>"; };
 		4C0000000000000000000009 /* Race3D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Race3D.swift; sourceTree = "<group>"; };
-		4C0000000000000000000010 /* RaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceView.swift; sourceTree = "<group>"; };
-		4C0000000000000000000011 /* CareerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerView.swift; sourceTree = "<group>"; };
-		4C0000000000000000000012 /* PodiumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodiumView.swift; sourceTree = "<group>"; };
-		4C0000000000000000000013 /* GarageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000010 /* Showcase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Showcase.swift; sourceTree = "<group>"; };
+		4C0000000000000000000011 /* RaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000012 /* CareerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareerView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000013 /* PodiumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodiumView.swift; sourceTree = "<group>"; };
+		4C0000000000000000000014 /* GarageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageView.swift; sourceTree = "<group>"; };
 		4C0000000000000000000090 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4C0000000000000000000091 /* Art */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Art; sourceTree = "<group>"; };
 		4B00000000000000000000F1 /* MotoRush.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MotoRush.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -74,10 +76,11 @@
 				4C0000000000000000000007 /* AI.swift */,
 				4C0000000000000000000008 /* RaceEngine.swift */,
 				4C0000000000000000000009 /* Race3D.swift */,
-				4C0000000000000000000010 /* RaceView.swift */,
-				4C0000000000000000000011 /* CareerView.swift */,
-				4C0000000000000000000012 /* PodiumView.swift */,
-				4C0000000000000000000013 /* GarageView.swift */,
+				4C0000000000000000000010 /* Showcase.swift */,
+				4C0000000000000000000011 /* RaceView.swift */,
+				4C0000000000000000000012 /* CareerView.swift */,
+				4C0000000000000000000013 /* PodiumView.swift */,
+				4C0000000000000000000014 /* GarageView.swift */,
 				4C0000000000000000000090 /* Assets.xcassets */,
 				4C0000000000000000000091 /* Art */,
 			);
@@ -171,10 +174,11 @@
 				4D0000000000000000000007 /* AI.swift in Sources */,
 				4D0000000000000000000008 /* RaceEngine.swift in Sources */,
 				4D0000000000000000000009 /* Race3D.swift in Sources */,
-				4D0000000000000000000010 /* RaceView.swift in Sources */,
-				4D0000000000000000000011 /* CareerView.swift in Sources */,
-				4D0000000000000000000012 /* PodiumView.swift in Sources */,
-				4D0000000000000000000013 /* GarageView.swift in Sources */,
+				4D0000000000000000000010 /* Showcase.swift in Sources */,
+				4D0000000000000000000011 /* RaceView.swift in Sources */,
+				4D0000000000000000000012 /* CareerView.swift in Sources */,
+				4D0000000000000000000013 /* PodiumView.swift in Sources */,
+				4D0000000000000000000014 /* GarageView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

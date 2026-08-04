@@ -73,6 +73,10 @@ struct CareerView: View {
                 .font(.system(size: 20, weight: .heavy, design: .rounded))
                 .foregroundColor(.white.opacity(0.85))
             Spacer()
+            ShowcaseView(content: .bike(bikeId: game.profile.currentBike,
+                                        tint: game.currentSpec.color,
+                                        withRider: true))
+                .frame(width: 200, height: 92)
             dailyGoalPill
         }
         .padding(.vertical, 8)

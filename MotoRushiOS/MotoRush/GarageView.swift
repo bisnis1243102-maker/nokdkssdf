@@ -22,6 +22,10 @@ struct GarageView: View {
                 }
 
                 HStack(spacing: 12) {
+                    ShowcaseView(content: .bike(bikeId: game.profile.currentBike,
+                                                tint: game.currentSpec.color,
+                                                withRider: false))
+                        .frame(width: 240, height: 140)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(game.currentSpec.name)
                             .font(.system(size: 22, weight: .black, design: .rounded))
@@ -119,10 +123,10 @@ struct GarageView: View {
         let selected = game.profile.currentBike == spec.id
         let locked = game.profile.level < spec.unlockLevel
         return HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(LinearGradient(colors: [Color(hex: spec.color), .black.opacity(0.6)],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 54, height: 40)
+            ShowcaseView(content: .bike(bikeId: spec.id, tint: spec.color, withRider: false),
+                         spins: false)
+                .frame(width: 76, height: 48)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.25)))
             VStack(alignment: .leading, spacing: 2) {
                 Text(spec.name)
                     .font(.system(size: 15, weight: .heavy))
@@ -182,8 +186,8 @@ struct RiderView: View {
                 }
 
                 HStack(spacing: 20) {
-                    RiderFigure(jersey: Theme.accent, waving: true)
-                        .frame(width: 110, height: 170)
+                    ShowcaseView(content: .rider(tint: Theme.jerseyHex))
+                        .frame(width: 150, height: 210)
 
                     VStack(alignment: .leading, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {

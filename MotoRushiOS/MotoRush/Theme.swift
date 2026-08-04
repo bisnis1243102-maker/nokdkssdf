@@ -19,6 +19,9 @@ enum Theme {
     static let skyTop = Color(hex: "#1CA8DC")
     static let skyBottom = Color(hex: "#0E5C85")
 
+    /// The rider's jersey colour, as a hex string for the SceneKit stage.
+    static let jerseyHex = "#2E6BFF"
+
     static func medalColor(_ m: Int) -> Color {
         switch m {
         case 3: return gold

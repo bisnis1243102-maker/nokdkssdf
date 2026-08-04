@@ -77,37 +77,21 @@ struct PodiumView: View {
     }
 
     private var podium: some View {
-        HStack(alignment: .bottom, spacing: 4) {
-            podiumSlot(place: 2, height: 66)
-            podiumSlot(place: 1, height: 96)
-            podiumSlot(place: 3, height: 52)
-        }
-        .padding(.bottom, 8)
+        ShowcaseView(content: .podium(tints: jerseyTints, playerPlace: result?.position ?? 0),
+                     spins: false)
+            .frame(height: 280)
+            .padding(.bottom, 4)
     }
 
-    private func podiumSlot(place: Int, height: CGFloat) -> some View {
-        let names = result?.order.map { $0.0 } ?? []
-        let name = names.count >= place ? names[place - 1] : "—"
-        let isPlayer = name == "You"
-        let jersey: Color = place == 1 ? Color(hex: "#2E6BFF")
-                          : (place == 2 ? Color(hex: "#2BD9E0") : Color(hex: "#B7F04A"))
-        return VStack(spacing: 0) {
-            RiderFigure(jersey: jersey, waving: isPlayer)
-                .frame(width: 84, height: 132)
-                .offset(y: appear ? 0 : 30)
-                .opacity(appear ? 1 : 0)
-                .animation(.spring(response: 0.5, dampingFraction: 0.7)
-                    .delay(Double(place) * 0.12), value: appear)
-            ZStack {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(LinearGradient(colors: [Color(hex: "#D8D8D8"), Color(hex: "#9AA0A6")],
-                                         startPoint: .top, endPoint: .bottom))
-                Text("\(place)")
-                    .font(.system(size: 40, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.35), radius: 2, y: 2)
-            }
-            .frame(width: 116, height: height)
+    /// One jersey colour per place, with the player in the game's accent so
+    /// they are findable on the blocks at a glance.
+    private var jerseyTints: [String] {
+        let palette = ["#2E6BFF", "#2BD9E0", "#B7F04A"]
+        guard let r = result else { return palette }
+        return (0..<3).map { idx in
+            let names = r.order.map { $0.0 }
+            if idx < names.count, names[idx] == "You" { return "#FF5D3B" }
+            return palette[idx]
         }
     }
 
@@ -172,56 +156,6 @@ struct PodiumView: View {
             Text(label)
                 .font(.system(size: 9, weight: .heavy))
                 .foregroundColor(.white.opacity(0.6))
-        }
-    }
-}
-
-/// A stylised standing rider, drawn from shapes so no art assets are needed.
-struct RiderFigure: View {
-    let jersey: Color
-    var waving: Bool = false
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            ZStack {
-                // Legs
-                Capsule().fill(Color(hex: "#171B22"))
-                    .frame(width: w * 0.17, height: h * 0.42)
-                    .offset(x: -w * 0.11, y: h * 0.25)
-                Capsule().fill(Color(hex: "#171B22"))
-                    .frame(width: w * 0.17, height: h * 0.42)
-                    .offset(x: w * 0.11, y: h * 0.25)
-                // Boots
-                RoundedRectangle(cornerRadius: 3).fill(Color(hex: "#0D1016"))
-                    .frame(width: w * 0.22, height: h * 0.08)
-                    .offset(x: -w * 0.11, y: h * 0.45)
-                RoundedRectangle(cornerRadius: 3).fill(Color(hex: "#0D1016"))
-                    .frame(width: w * 0.22, height: h * 0.08)
-                    .offset(x: w * 0.11, y: h * 0.45)
-                // Torso
-                RoundedRectangle(cornerRadius: w * 0.12)
-                    .fill(jersey)
-                    .frame(width: w * 0.52, height: h * 0.36)
-                    .offset(y: -h * 0.06)
-                // Arms
-                Capsule().fill(jersey)
-                    .frame(width: w * 0.13, height: h * 0.28)
-                    .rotationEffect(.degrees(waving ? -38 : 8), anchor: .top)
-                    .offset(x: -w * 0.28, y: -h * 0.12)
-                Capsule().fill(jersey)
-                    .frame(width: w * 0.13, height: h * 0.28)
-                    .rotationEffect(.degrees(-8), anchor: .top)
-                    .offset(x: w * 0.28, y: -h * 0.12)
-                // Helmet
-                Circle().fill(jersey.opacity(0.95))
-                    .frame(width: w * 0.42, height: w * 0.42)
-                    .offset(y: -h * 0.34)
-                Capsule().fill(Color(hex: "#B7F04A"))
-                    .frame(width: w * 0.24, height: w * 0.11)
-                    .offset(x: w * 0.05, y: -h * 0.34)
-            }
         }
     }
 }

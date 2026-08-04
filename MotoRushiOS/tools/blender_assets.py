@@ -634,6 +634,99 @@ def build_rider():
     export("rider.obj", [rider])
 
 
+def build_rider_standing():
+    """A rider stood upright, for the podium and the rider screen. The racing
+    model is crouched into the bars, which looks wrong anywhere off the bike,
+    so this is posed separately rather than re-used."""
+    reset_scene()
+
+    jersey = material("Jersey", (0.12, 0.34, 0.90), 0.0, 0.50)
+    pants = material("Pants", (0.10, 0.11, 0.14), 0.0, 0.55)
+    boot = material("Boot", (0.05, 0.05, 0.06), 0.15, 0.40)
+    helmet = material("Helmet", (0.72, 0.10, 0.05), 0.30, 0.16)
+    visor = material("Visor", (0.30, 0.82, 0.62), 0.7, 0.08)
+    glove = material("Glove", (0.12, 0.13, 0.16), 0.0, 0.55)
+    strap_mat = material("HelmetStrap", (0.07, 0.08, 0.10), 0.0, 0.55)
+    port = material("Port", (0.05, 0.05, 0.06), 0.0, 0.7)
+
+    helmet_parts, jersey_parts, pants_parts, other = [], [], [], []
+
+    # Real proportions for a 1.78 m rider: feet at 0, knees 0.48, hips 0.92,
+    # shoulders 1.45, head centred at 1.62. Getting these wrong is what makes
+    # a figure read as a squat doll rather than a person.
+    hip = (0.0, 0.0, 0.92)
+    chest = (0.0, 0.0, 1.36)
+    shoulder_z = 1.40
+    head_c = (0.02, 0.0, 1.68)
+
+    jersey_parts.append(tube_between("torso", (hip[0], 0, hip[2] - 0.04), chest,
+                                     0.125, jersey, verts=14, taper=0.150))
+    jersey_parts.append(sphere("chestmass", 0.152, (0.0, 0.0, 1.31), jersey,
+                               scale=(0.78, 1.10, 0.88)))
+    pants_parts.append(sphere("hipmass", 0.140, hip, pants, scale=(0.85, 1.05, 0.80)))
+    jersey_parts.append(tube_between("shoulders", (0.0, 0.200, shoulder_z),
+                                     (0.0, -0.200, shoulder_z), 0.088, jersey, verts=12))
+    jersey_parts.append(tube_between("neck", (head_c[0], 0, 1.60), (0.0, 0, 1.40),
+                                     0.056, jersey, verts=8))
+
+    for side in (1, -1):
+        y = 0.095 * side
+        knee = (0.015, y * 1.05, 0.48)
+        ankle = (0.0, y * 1.05, 0.09)
+        pants_parts.append(tube_between("thigh%d" % side, (hip[0], y, hip[2] - 0.06), knee,
+                                        0.098, pants, verts=10, taper=0.076))
+        pants_parts.append(sphere("kneepad%d" % side, 0.078, knee, pants))
+        pants_parts.append(tube_between("shin%d" % side, knee, ankle,
+                                        0.070, pants, verts=10, taper=0.056))
+        other.append(box("boot%d" % side, (0.27, 0.115, 0.11), (0.05, y * 1.05, 0.055), mat=boot))
+        other.append(box("bootcuff%d" % side, (0.12, 0.125, 0.22), (-0.01, y * 1.05, 0.17), mat=boot))
+
+        # The winner throws one arm up; the other hangs by the hip.
+        shoulder = (0.0, 0.205 * side, shoulder_z - 0.02)
+        if side == 1:
+            elbow = (0.03, 0.300 * side, 1.62)
+            hand = (0.0, 0.330 * side, 1.97)
+        else:
+            elbow = (0.02, 0.255 * side, 1.12)
+            hand = (0.05, 0.270 * side, 0.88)
+        jersey_parts.append(tube_between("upperarm%d" % side, shoulder, elbow,
+                                         0.068, jersey, verts=10, taper=0.056))
+        jersey_parts.append(sphere("elbow%d" % side, 0.057, elbow, jersey))
+        jersey_parts.append(tube_between("forearm%d" % side, elbow, hand,
+                                         0.052, jersey, verts=10, taper=0.045))
+        other.append(sphere("glove%d" % side, 0.060, hand, glove, scale=(1.05, 1.0, 1.15)))
+
+    hx, hz = head_c[0], head_c[2]
+    shell = blob("HelmetShell", [
+        ((hx - 0.080, 0.0, hz - 0.015), 0.088),
+        ((hx - 0.050, 0.0, hz + 0.000), 0.096),
+        ((hx - 0.020, 0.0, hz + 0.008), 0.099),
+        ((hx + 0.010, 0.0, hz + 0.008), 0.099),
+        ((hx + 0.040, 0.0, hz + 0.000), 0.096),
+        ((hx + 0.065, 0.0, hz - 0.015), 0.090),
+        ((hx + 0.060, 0.0, hz - 0.050), 0.082),
+        ((hx + 0.090, 0.0, hz - 0.062), 0.074),
+        ((hx + 0.118, 0.0, hz - 0.058), 0.064),
+    ], helmet, resolution=0.006)
+    helmet_parts.append(shell)
+    helmet_parts.append(box("peak", (0.165, 0.205, 0.020), (hx + 0.140, 0, hz + 0.062),
+                            rot=(0, -0.22, 0), mat=helmet))
+    other.append(box("eyeport", (0.045, 0.185, 0.080), (hx + 0.115, 0, hz + 0.000),
+                     rot=(0, 0.08, 0), mat=port))
+    other.append(box("goggle", (0.040, 0.198, 0.072), (hx + 0.130, 0, hz + 0.002),
+                     rot=(0, 0.08, 0), mat=visor))
+    other.append(box("gogglestrap", (0.190, 0.215, 0.044), (hx - 0.020, 0, hz + 0.010),
+                     rot=(0, 0.03, 0), mat=strap_mat))
+
+    helmet_body = fuse(helmet_parts, "Helmet", voxel=0.008)
+    torso = fuse(jersey_parts, "Torso", voxel=0.014)
+    legs = fuse(pants_parts, "Legs", voxel=0.014)
+
+    rider = join([helmet_body, torso, legs] + other, "RiderStanding")
+    bevel(rider, 0.006, 2)
+    export("rider_stand.obj", [rider])
+
+
 # ── scenery ────────────────────────────────────────────────────────────────
 
 def build_props():
@@ -685,5 +778,6 @@ def build_props():
 if __name__ == "__main__":
     build_bike()
     build_rider()
+    build_rider_standing()
     build_props()
     print("MotoRush art build complete ->", OUT_DIR)
