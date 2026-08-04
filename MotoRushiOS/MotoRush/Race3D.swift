@@ -135,7 +135,11 @@ enum TerrainBuilder {
                     let i1 = Int32(r * cols + c + 1)
                     let i2 = Int32((r + 1) * cols + c)
                     let i3 = Int32((r + 1) * cols + c + 1)
-                    idx.append(contentsOf: [i0, i2, i1, i1, i2, i3])
+                    // Wound so the face normal comes out +y. The previous order
+                    // (i0, i2, i1) crossed +x into +z, which is -y: every
+                    // terrain normal pointed at the ground, so the sun lit the
+                    // underside and the track rendered black.
+                    idx.append(contentsOf: [i0, i1, i3, i0, i3, i2])
                 }
             }
             return idx
@@ -369,6 +373,9 @@ final class Race3DController: NSObject, SCNSceneRendererDelegate {
             m.diffuse.contents = c
             m.roughness.contents = roughness
             m.lightingModel = .physicallyBased
+            // The ribbon is seen from above and from slightly below over
+            // crests; culling it either way is never what we want.
+            m.isDoubleSided = true
             return m
         }
         terrain.materials = [
