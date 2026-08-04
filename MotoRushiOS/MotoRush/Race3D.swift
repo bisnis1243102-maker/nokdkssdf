@@ -107,7 +107,13 @@ enum TerrainBuilder {
     /// disappear behind the ribbon entirely from a near-level camera.
     static let propRows: [(z: Float, drop: Float)] = [(-4.4, -0.42), (-6.6, -2.83)]
 
-    static func build(track: Track, step: Double = 0.8) -> (surface: SCNGeometry, verge: SCNGeometry) {
+    /// One geometry with three index groups — skirt, lip, racing line — so
+    /// SceneKit can give each its own material. Splitting it into separate
+    /// geometries instead would recompute normals per group and seam the
+    /// lighting along every band boundary; a single flat colour across the
+    /// whole ribbon, which is what this used to be, reads as a mushy dune with
+    /// no visible racing line at all.
+    static func build(track: Track, step: Double = 0.8) -> SCNGeometry {
         var verts: [SCNVector3] = []
         var rows = 0
         var x = 0.0
@@ -121,10 +127,10 @@ enum TerrainBuilder {
         }
 
         let cols = section.count
-        func quads(from a: Int, to b: Int) -> [Int32] {
+        func quads(_ spans: [Int]) -> [Int32] {
             var idx: [Int32] = []
             for r in 0..<(rows - 1) {
-                for c in a..<b {
+                for c in spans {
                     let i0 = Int32(r * cols + c)
                     let i1 = Int32(r * cols + c + 1)
                     let i2 = Int32((r + 1) * cols + c)
@@ -135,20 +141,21 @@ enum TerrainBuilder {
             return idx
         }
 
-        // Columns 2…5 are the rideable surface and its lips; everything
-        // outboard of those is skirt. Indexed off `cols` rather than written
-        // out, so changing the section cannot silently mis-assign a band.
-        let surfaceIdx = quads(from: 2, to: cols - 2)
-        var vergeIdx = quads(from: 0, to: 2)
-        vergeIdx.append(contentsOf: quads(from: cols - 2, to: cols - 1))
+        // Spans are named off the section rather than hard-coded, so editing
+        // the profile cannot silently mis-assign a band.
+        let lastSpan = cols - 2                      // index of the final span
+        let skirt = quads([0, 1, lastSpan])
+        let lip = quads([2, lastSpan - 1])
+        let line = quads([3, 4])
 
-        return (geometry(verts, surfaceIdx), geometry(verts, vergeIdx))
+        return geometry(verts, groups: [skirt, lip, line])
     }
 
-    private static func geometry(_ verts: [SCNVector3], _ indices: [Int32]) -> SCNGeometry {
-        // Smooth per-vertex normals, accumulated from the face normals that
-        // touch each vertex. Without these the terrain renders unlit.
+    private static func geometry(_ verts: [SCNVector3], groups: [[Int32]]) -> SCNGeometry {
+        // Smooth per-vertex normals, accumulated over *every* group's faces so
+        // that vertices shared between bands get one averaged normal.
         var normals = [SCNVector3](repeating: SCNVector3Zero, count: verts.count)
+        let indices = groups.flatMap { $0 }
         var i = 0
         while i + 2 < indices.count {
             let a = Int(indices[i]), b = Int(indices[i + 1]), c = Int(indices[i + 2])
@@ -172,12 +179,14 @@ enum TerrainBuilder {
 
         let source = SCNGeometrySource(vertices: verts)
         let normalSource = SCNGeometrySource(normals: normals)
-        let data = Data(bytes: indices, count: indices.count * MemoryLayout<Int32>.size)
-        let element = SCNGeometryElement(data: data,
-                                         primitiveType: .triangles,
-                                         primitiveCount: indices.count / 3,
-                                         bytesPerIndex: MemoryLayout<Int32>.size)
-        return SCNGeometry(sources: [source, normalSource], elements: [element])
+        let elements = groups.map { g -> SCNGeometryElement in
+            let data = Data(bytes: g, count: g.count * MemoryLayout<Int32>.size)
+            return SCNGeometryElement(data: data,
+                                      primitiveType: .triangles,
+                                      primitiveCount: g.count / 3,
+                                      bytesPerIndex: MemoryLayout<Int32>.size)
+        }
+        return SCNGeometry(sources: [source, normalSource], elements: elements)
     }
 }
 
@@ -314,26 +323,35 @@ final class Race3DController: NSObject, SCNSceneRendererDelegate {
         scene.fogEndDistance = 320
         scene.fogDensityExponent = 1.4
 
-        // Terrain.
-        let (surface, verge) = TerrainBuilder.build(track: track)
-        let dirt = SCNMaterial()
-        dirt.diffuse.contents = UIColor(Color(hex: biome.ground))
-        dirt.roughness.contents = 0.95
-        dirt.lightingModel = .physicallyBased
-        surface.materials = [dirt]
+        // Terrain. Three bands in one geometry, in the order TerrainBuilder
+        // emits them: outer skirt, lip, racing line. The lip catching more
+        // light than the line it edges is what makes the track read as a track
+        // rather than as a smooth dune.
+        let terrain = TerrainBuilder.build(track: track)
+        func dirtMaterial(_ hex: String, roughness: CGFloat, brighten: CGFloat = 1) -> SCNMaterial {
+            let m = SCNMaterial()
+            var c = UIColor(Color(hex: hex))
+            if brighten != 1 {
+                var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                if c.getRed(&r, green: &g, blue: &b, alpha: &a) {
+                    c = UIColor(red: min(1, r * brighten), green: min(1, g * brighten),
+                                blue: min(1, b * brighten), alpha: a)
+                }
+            }
+            m.diffuse.contents = c
+            m.roughness.contents = roughness
+            m.lightingModel = .physicallyBased
+            return m
+        }
+        terrain.materials = [
+            dirtMaterial(biome.groundDeep, roughness: 1.0),
+            dirtMaterial(biome.accent, roughness: 0.9, brighten: 1.1),
+            dirtMaterial(biome.ground, roughness: 0.95)
+        ]
 
-        let skirt = SCNMaterial()
-        skirt.diffuse.contents = UIColor(Color(hex: biome.groundDeep))
-        skirt.roughness.contents = 1.0
-        skirt.lightingModel = .physicallyBased
-        verge.materials = [skirt]
-
-        let surfaceNode = SCNNode(geometry: surface)
-        surfaceNode.castsShadow = false
-        scene.rootNode.addChildNode(surfaceNode)
-        let vergeNode = SCNNode(geometry: verge)
-        vergeNode.castsShadow = false
-        scene.rootNode.addChildNode(vergeNode)
+        let terrainNode = SCNNode(geometry: terrain)
+        terrainNode.castsShadow = false
+        scene.rootNode.addChildNode(terrainNode)
 
         buildProps()
         buildGate()
