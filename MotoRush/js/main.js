@@ -2,7 +2,7 @@
 
 import { Profile, rankTier } from './save.js';
 import { InputManager } from './input.js';
-import { Renderer } from './render.js';
+import { createRenderer } from './render3d.js';
 import { AudioEngine } from './audio.js';
 import { Race } from './game.js';
 import { generateTrack, trackCatalogue } from './track.js';
@@ -34,7 +34,7 @@ class App {
     this.profile = new Profile();
     this.audio = new AudioEngine();
     this.input = new InputManager(this.profile);
-    this.renderer = new Renderer($('#canvas'));
+    this.renderer = createRenderer($('#canvas'));
     this.catalogue = trackCatalogue(240);
     this.adaptive = new AdaptiveDifficulty(this.profile.data.adaptive);
     this.race = null;

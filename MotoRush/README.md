@@ -1,8 +1,18 @@
 # MotoRush
 
-An original 2.5D physics motocross game. Zero dependencies, zero downloaded
+An original 3D physics motocross game. Zero dependencies, zero downloaded
 assets — every bike, track, particle and sound is generated at runtime from
 code. Runs in any modern browser on desktop, phone or tablet.
+
+The race renders in WebGL: the track is a heightfield extruded into a banked
+ribbon, the bike is an assembled set of parts posed from the solved
+suspension, and the rider is a jointed figure. There is no sprite work and no
+3D library — the matrix maths and the mesh builder are in `js/gl.js`. Screen
+-space effects (dust, rain, vignette) stay 2D and composite from an overlay
+canvas, projected through the real perspective matrix so they sit where they
+should in the scene. If a browser cannot give us a WebGL context the game
+falls back to the original 2.5D canvas renderer rather than failing to
+start.
 
 ## Run it
 
@@ -95,7 +105,9 @@ js/data.js      bikes, biomes, missions, cosmetics, championships, season
 js/track.js     procedural track generator + track catalogue
 js/physics.js   bike simulation (suspension, tyres, weight transfer, crashes)
 js/ai.js        racing AI personalities + adaptive difficulty
-js/render.js    camera, particles, canvas renderer
+js/gl.js        matrices, shader/mesh plumbing, procedural primitives
+js/render3d.js  WebGL renderer: terrain ribbon, bike rig, riders, scenery
+js/render.js    camera, particles, 2.5D canvas renderer + screen-space passes
 js/audio.js     Web Audio synthesis (engine, ambience, SFX, music)
 js/input.js     keyboard / gamepad / touch → four analogue channels
 js/save.js      profile, economy, missions, records, ghosts

@@ -9,6 +9,11 @@ export class Camera {
     this.x = 0; this.y = 0; this.zoom = 26; this.targetZoom = 26;
     this.shake = 0; this.shakeX = 0; this.shakeY = 0;
     this.slowmo = 1;
+    // The 3D renderer installs a real perspective projection here. Everything
+    // that anchors a screen-space effect to a world point — particles above
+    // all — goes through toScreen, so this one hook keeps them in agreement
+    // with whichever renderer is running.
+    this.projector = null;
   }
   follow(bike, dt, canvas) {
     const lead = clamp(bike.vx * 0.42, -6, 14);
@@ -27,6 +32,7 @@ export class Camera {
   }
   kick(amount) { this.shake = Math.min(1.6, this.shake + amount); }
   toScreen(wx, wy, canvas) {
+    if (this.projector) return this.projector(wx, wy, canvas);
     return {
       x: (wx - this.x + this.shakeX) * this.zoom + canvas.width / 2,
       y: canvas.height * 0.62 - (wy - this.y + this.shakeY) * this.zoom
@@ -71,7 +77,9 @@ export class Particles {
     for (const p of this.pool) {
       const t = p.age / p.life;
       const s = cam.toScreen(p.x, p.y, canvas);
-      const r = p.size * cam.zoom * (1 + t * 1.4);
+      // Under a perspective camera the projector reports the pixels-per-metre
+      // at that particle's depth; the flat camera has one scale everywhere.
+      const r = p.size * (s.scale ?? cam.zoom) * (1 + t * 1.4);
       if (s.x < -60 || s.x > canvas.width + 60) continue;
       ctx.globalAlpha = (1 - t) * (p.glow ? 0.9 : 0.55);
       ctx.fillStyle = p.color;
