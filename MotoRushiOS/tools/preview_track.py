@@ -69,11 +69,19 @@ while x <= x1:
     x += 0.6
 
 cols = len(SECTION)
+# Which of the three bands each face belongs to, matching the groups
+# TerrainBuilder emits: 0 outer skirt, 1 lip, 2 racing line.
+LAST = cols - 2
+BAND = {}
+for c in range(cols - 1):
+    BAND[c] = 0 if c in (0, 1, LAST) else (1 if c in (2, LAST - 1) else 2)
+face_band = []
 for r in range(rows - 1):
     for c in range(cols - 1):
         a = r * cols + c
         b = (r + 1) * cols + c
         faces.append((a, b, b + 1, a + 1))
+        face_band.append(BAND[c])
 
 mesh = bpy.data.meshes.new("Terrain")
 mesh.from_pydata(verts, [], faces)
@@ -83,12 +91,18 @@ bpy.context.collection.objects.link(terrain)
 for poly in terrain.data.polygons:
     poly.use_smooth = True
 
-dirt = bpy.data.materials.new("Dirt")
-dirt.use_nodes = True
-bsdf = dirt.node_tree.nodes["Principled BSDF"]
-bsdf.inputs["Base Color"].default_value = (0.32, 0.20, 0.13, 1)
-bsdf.inputs["Roughness"].default_value = 0.95
-terrain.data.materials.append(dirt)
+# The motocross palette from data.js/Track.swift: groundDeep, accent, ground.
+for name, rgb in (("Skirt", (0.36, 0.26, 0.19)),
+                  ("Lip", (0.78, 0.66, 0.48)),
+                  ("Line", (0.54, 0.38, 0.27))):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = (*rgb, 1)
+    bsdf.inputs["Roughness"].default_value = 0.95
+    terrain.data.materials.append(m)
+for poly, band in zip(terrain.data.polygons, face_band):
+    poly.material_index = band
 
 
 def load(name, location, rot=(0.0, 0.0, 0.0), scale=1.0):
