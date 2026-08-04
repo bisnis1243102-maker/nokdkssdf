@@ -4,6 +4,8 @@ Native SwiftUI + SpriteKit motocross game. Landscape, iOS 16+, no third-party
 frameworks and no image assets — every bike, rider, track and effect is drawn
 from procedural geometry at runtime.
 
+![The bike and rider, rendered from the exported models](docs/bike-preview.png)
+
 ## Build
 
 Open `MotoRush.xcodeproj` in Xcode and run, or let CI do it: every push to this
@@ -35,6 +37,27 @@ tool of choice.
   win. The division badge sits in the career top bar.
 - **Garage / Rider / Settings** — bikes, six upgrade lines, name and number,
   haptics and landing assist.
+
+## Art
+
+The race renders in SceneKit. The simulation is unchanged — still a side-on
+plane, which is what keeps the handling readable — but it is presented in 3D:
+
+- `tools/blender_assets.py` builds every model procedurally in Blender and
+  exports OBJ+MTL into `MotoRush/Art`. Rebuild with
+  `blender --background --python tools/blender_assets.py`, and preview the
+  result with `blender --background --python tools/preview.py -- out.png`.
+- Parts are laid out around shared anchors (`Rig` in the script, `Rig` in
+  `Race3D.swift`): the fork model's origin is the front axle, the swingarm's
+  is its pivot, so the renderer can drop each part straight onto the solved
+  suspension positions.
+- The rider is built from metaballs and voxel-remeshed per material group, so
+  the helmet and limbs are continuous surfaces rather than a pile of
+  primitives. Wheels are torus carcasses with laced spokes; fenders are swept
+  panels.
+- The track is extruded at runtime from the same heightfield into a banked
+  ribbon with raised lips and an outer skirt, lit by a directional sun with
+  deferred shadows, ambient fill, depth fog and HDR bloom.
 
 ## Code
 

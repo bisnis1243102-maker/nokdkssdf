@@ -10,6 +10,19 @@ import UIKit
 // whose parts are driven by the solved suspension, and the camera sits slightly
 // off-axis so the track has depth.
 
+/// The anchors the Blender models were built around (see tools/blender_assets.py).
+/// Keeping one copy of these numbers on each side is what makes the parts line
+/// up: the fork model's origin is its axle, the swingarm's is its pivot.
+enum Rig {
+    static let wheelbase: Float = 1.34
+    static let axleY: Float = -0.30
+    static let rearAxle = SCNVector3(-0.67, -0.30, 0)
+    static let frontAxle = SCNVector3(0.67, -0.30, 0)
+    static let swingPivot = SCNVector3(-0.10, -0.16, 0)
+    /// Angle of the swingarm as modelled, pivot → rear axle.
+    static let swingRest: Float = atan2(-0.30 - (-0.16), -0.67 - (-0.10))
+}
+
 // MARK: - Model loading
 
 enum Art {
@@ -227,12 +240,14 @@ final class BikeRig {
         wheelRear.eulerAngles.z = wheelSpin
         wheelFront.eulerAngles.z = wheelSpin
 
-        // The fork rides between the steering head and the front axle, so the
-        // travel is visible as the front end compresses.
-        fork.position = SCNVector3(front.x * 0.55, front.y * 0.5 + 0.12, 0)
-        fork.eulerAngles.z = 0
-        swingarm.position = SCNVector3(-0.05, 0.02, 0)
-        swingarm.eulerAngles.z = atan2(rear.y - 0.02, rear.x + 0.05)
+        // The fork model's origin is the front axle, so it simply rides with
+        // the wheel and the travel shows as the front end compressing.
+        fork.position = front
+        // The swingarm hinges at its pivot; rotate it by however far the rear
+        // axle has moved from where it was modelled.
+        swingarm.position = Rig.swingPivot
+        let swingNow = atan2(rear.y - Rig.swingPivot.y, rear.x - Rig.swingPivot.x)
+        swingarm.eulerAngles.z = swingNow - Rig.swingRest
 
         // Rider: weight transfer shifts them fore/aft and they stand up as
         // they move, which is most of the read on what the bike is doing.
