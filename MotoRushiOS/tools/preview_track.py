@@ -22,8 +22,11 @@ sys.path.insert(0, HERE)
 from blender_assets import Rig  # noqa: E402
 
 # (lateral offset, height offset) — mirrors TerrainBuilder.section.
-SECTION = [(-6.2, -2.6), (-3.6, 0.55), (-2.9, 0.0), (0.0, 0.0),
-           (2.9, 0.0), (3.6, 0.55), (6.2, -2.6)]
+SECTION = [(-9.0, -4.2), (-6.2, -2.6), (-3.6, 0.55), (-2.9, 0.0), (0.0, 0.0),
+           (2.9, 0.0), (3.6, 0.55), (4.4, -3.4)]
+
+# Matches TerrainBuilder.propRows: both scenery rows on the far side only.
+PROP_ROWS = [(-4.4, -0.42), (-6.6, -2.83)]
 
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 TRACK = args[0] if args else "track.json"
@@ -57,8 +60,11 @@ rows = 0
 x = x0
 while x <= x1:
     h = height_at(x)
-    for (y, dz) in SECTION:
-        verts.append((x, y, h + dz))
+    for (z, dz) in SECTION:
+        # Blender's lateral axis is negated against SceneKit's z. Building the
+        # section directly would render the scene mirrored: with the camera on
+        # the near side, +x would run left here and right in the app.
+        verts.append((x, -z, h + dz))
     rows += 1
     x += 0.6
 
@@ -136,10 +142,10 @@ for prop in data.get("props", []):
     # The browser build calls the field "type" and marks the far row "layer".
     kind = {"tree": "prop_tree", "banner": "prop_gantry",
             "flag": "prop_flag"}.get(prop.get("type") or prop.get("kind"), "prop_bale")
-    # Sit them on the skirt just outside the lip, not floating past the edge
-    # of the ribbon: at y = ±5.0 the surface is about 1.1 m below track level.
-    side = -5.0 if prop.get("layer") or prop.get("back") else 5.0
-    load(kind, (px, side, height_at(px) - 1.1), rot=(0, 0, px % 1.5),
+    # Far side only, near track level: the camera sits out on the near side, so
+    # anything placed there stands between the viewer and the race.
+    side, drop = PROP_ROWS[1 if (prop.get("layer") or prop.get("back")) else 0]
+    load(kind, (px, -side, height_at(px) + drop), rot=(0, 0, px % 1.5),
          scale=prop.get("scale", 1.0))
 
 # ── camera, lighting, sky ─────────────────────────────────────────────────
@@ -153,6 +159,7 @@ bpy.ops.object.empty_add(type='PLAIN_AXES',
 target = bpy.context.active_object
 
 # Square-on to the track and up a little, which is how the game frames it.
+# -y here is the app's +z, i.e. the near side the race camera views from.
 bpy.ops.object.camera_add(location=(bike_x + 3.0, -17.0, height_at(bike_x) + 3.4))
 cam = bpy.context.active_object
 cam.data.lens = 50

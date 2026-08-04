@@ -91,9 +91,21 @@ enum TerrainBuilder {
     /// Cross-section of the track, as (z offset, height offset) pairs: a flat
     /// racing line with a raised lip either side and a skirt falling away to
     /// the scenery.
+    ///
+    /// It is deliberately asymmetric. The camera always sits out on +z, and a
+    /// skirt as wide on that side as on the far one puts a lit brown cliff
+    /// between the viewer and the racing line. The near side therefore falls
+    /// away sooner and steeper, where the lip itself hides it, while the far
+    /// side runs out further because that is the ground the scenery stands on.
     private static let section: [(z: Float, dy: Float)] = [
-        (-6.2, -2.6), (-3.6, 0.55), (-2.9, 0.0), (0, 0.0), (2.9, 0.0), (3.6, 0.55), (6.2, -2.6)
+        (-9.0, -4.2), (-6.2, -2.6), (-3.6, 0.55), (-2.9, 0.0),
+        (0, 0.0), (2.9, 0.0), (3.6, 0.55), (4.4, -3.4)
     ]
+
+    /// Where the two scenery rows sit, and how far the skirt has dropped by
+    /// then. Both are kept near track level: further down the slope they
+    /// disappear behind the ribbon entirely from a near-level camera.
+    static let propRows: [(z: Float, drop: Float)] = [(-4.4, -0.42), (-6.6, -2.83)]
 
     static func build(track: Track, step: Double = 0.8) -> (surface: SCNGeometry, verge: SCNGeometry) {
         var verts: [SCNVector3] = []
@@ -123,9 +135,11 @@ enum TerrainBuilder {
             return idx
         }
 
-        // Columns 1…5 are the rideable surface; 0 and 5 are the outer skirt.
-        let surfaceIdx = quads(from: 1, to: cols - 2)
-        var vergeIdx = quads(from: 0, to: 1)
+        // Columns 2…5 are the rideable surface and its lips; everything
+        // outboard of those is skirt. Indexed off `cols` rather than written
+        // out, so changing the section cannot silently mis-assign a band.
+        let surfaceIdx = quads(from: 2, to: cols - 2)
+        var vergeIdx = quads(from: 0, to: 2)
         vergeIdx.append(contentsOf: quads(from: cols - 2, to: cols - 1))
 
         return (geometry(verts, surfaceIdx), geometry(verts, vergeIdx))
@@ -359,8 +373,13 @@ final class Race3DController: NSObject, SCNSceneRendererDelegate {
             let node = Art.part(name) {
                 SCNNode(geometry: SCNBox(width: 0.8, height: 0.6, length: 0.8, chamferRadius: 0.05))
             }
-            let z: Float = prop.back ? -9.5 : 8.2
-            node.position = SCNVector3(Float(prop.x), Float(track.height(at: prop.x)) - 1.2, z)
+            // Everything stands on the far side. A prop at +z sits between the
+            // camera and the race — and at 8.2 it was past the edge of the
+            // ribbon altogether, floating over nothing.
+            let row = TerrainBuilder.propRows[prop.back ? 1 : 0]
+            node.position = SCNVector3(Float(prop.x),
+                                       Float(track.height(at: prop.x)) + row.drop,
+                                       row.z)
             let sc = Float(prop.scale)
             node.scale = SCNVector3(sc, sc, sc)
             node.eulerAngles.y = Float.random(in: -0.4...0.4)
