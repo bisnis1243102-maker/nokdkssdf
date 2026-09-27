@@ -706,7 +706,14 @@ function updateCamera(dt) {
   const tgt = new V3(player.pos.x, player.pos.y + 1.4, player.pos.z);
   cam.look.lerp(tgt, 1 - Math.exp(-dt * 10));
   const cp = Math.cos(cam.pitch), off = new V3(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp).multiplyScalar(cam.dist);
-  cam.pos.copy(cam.look).add(off);
+  // pull the camera in front of any platform that would block the view of the player
+  let k = 1;
+  for (let s = 0.08; s <= 1; s += 0.04) {
+    const q = cam.look.clone().addScaledVector(off, s);
+    if (boxes.some(b => q.x > b.min.x - 0.3 && q.x < b.max.x + 0.3 && q.y > b.min.y - 0.3 && q.y < b.max.y + 0.3 && q.z > b.min.z - 0.3 && q.z < b.max.z + 0.3)) { k = Math.max(0.12, s - 0.06); break; }
+  }
+  cam.k = (cam.k || 1) + (k - (cam.k || 1)) * (k < (cam.k || 1) ? 1 : Math.min(1, dt * 3));
+  cam.pos.copy(cam.look).addScaledVector(off, cam.k);
   camera.position.copy(cam.pos);
   shake = Math.max(0, shake - dt); if (shake) camera.position.add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(shake * 0.3));
   camera.lookAt(cam.look);
