@@ -5,6 +5,7 @@ on:
     paths:
       - 'index.html'
       - 'three.min.js'
+      - 'beatbattle/**'
       - 'android/**'
       - '.github/workflows/build-apk.yml'
   workflow_dispatch:
@@ -27,6 +28,6 @@ jobs:
         run: gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: PlanetHopper-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: game-apks
+          path: android/app/build/outputs/apk/*/debug/*.apk
           if-no-files-found: error

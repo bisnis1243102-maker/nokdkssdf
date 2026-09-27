@@ -19,14 +19,33 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    // The game lives in the repo-root index.html (+ three.min.js); it is copied into the APK assets at build time.
-    sourceSets.main.assets.srcDirs += "$buildDir/gameAssets"
+    // Two games share this wrapper; each flavor ships its own HTML from the repo root.
+    flavorDimensions "game"
+    productFlavors {
+        planet {
+            dimension "game"
+            applicationId "com.planethopper.game"
+            resValue "string", "app_name", "Planet Hopper"
+        }
+        beat {
+            dimension "game"
+            applicationId "com.beatbattle.game"
+            resValue "string", "app_name", "Beat Battle"
+        }
+    }
+    sourceSets.planet.assets.srcDirs += "$buildDir/gameAssets/planet"
+    sourceSets.beat.assets.srcDirs += "$buildDir/gameAssets/beat"
 }
 
-tasks.register('copyGame', Copy) {
+tasks.register('copyPlanet', Copy) {
     from("$rootDir/..") {
         include 'index.html', 'three.min.js'
     }
-    into "$buildDir/gameAssets"
+    into "$buildDir/gameAssets/planet"
 }
-preBuild.dependsOn 'copyGame'
+tasks.register('copyBeat', Copy) {
+    from "$rootDir/../beatbattle/index.html"
+    into "$buildDir/gameAssets/beat"
+}
+preBuild.dependsOn 'copyPlanet', 'copyBeat'
+
