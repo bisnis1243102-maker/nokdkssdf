@@ -26,6 +26,9 @@
   #lives{position:absolute;left:18px;top:84px;font-size:16px;color:#c8c0a8}
   #right{position:absolute;right:18px;top:14px;text-align:right;font-size:14px;line-height:22px}
   #right big{font-size:22px;color:#e8c050}
+  #bossbar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);text-align:center;font-size:18px;color:#ffd020;display:none}
+  #bosshp{width:260px;height:14px;border:3px solid #000;background:#400;margin:6px auto 0}
+  #bosshp i{display:block;height:100%;background:linear-gradient(#ff6060,#c01010)}
   #center{position:absolute;left:0;right:0;top:28%;text-align:center;font-size:30px;color:#e8c050;opacity:0}
   #center small{display:block;font-size:14px;color:#e8e4d8;margin-top:8px}
   #pop{position:absolute;left:0;right:0;top:62%;text-align:center;font-size:16px;opacity:0}
@@ -56,6 +59,7 @@
   <div id="right" class="sh"></div>
   <div id="center" class="sh"></div>
   <div id="pop" class="sh"></div>
+  <div id="bossbar" class="sh"><span id="bossname"></span><div id="bosshp"></div></div>
 </div>
 <div id="touch">
   <div id="joy"><div id="knob"></div></div>
@@ -108,6 +112,39 @@ function noise(dur, freq, vol) { try { const a = ac(), s = a.createBufferSource(
 function tone(f, d, type = 'square', slide = 0, vol = 0.05) { try { const a = ac(), o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
   o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, f + slide), t + d);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + d); } catch (e) {} }
+// ---- original background music (hub, 4 courses, boss) ----
+const music = (() => {
+  const SONGS = [
+    { bpm: 126, lead: [76,0,79,0,84,0,83,81, 79,0,76,0,77,79,0,0, 74,0,77,0,81,0,79,77, 76,0,72,0,74,0,0,0], bass: [48,0,55,0,52,0,55,0, 53,0,57,0,48,0,55,0, 50,0,57,0,53,0,57,0, 55,0,59,0,43,0,47,0], chord: [[60,64,67],[65,69,72],[62,65,69],[67,71,74]] },
+    { bpm: 104, lead: [69,0,0,72,71,0,69,0, 64,0,0,0,65,64,62,0, 69,0,0,72,74,0,76,0, 74,72,71,0,69,0,0,0], bass: [45,0,45,0,45,0,52,0, 41,0,41,0,41,0,48,0, 43,0,43,0,43,0,50,0, 40,0,40,0,44,0,40,0], chord: [[57,60,64],[53,57,60],[55,59,62],[52,56,59]] },
+    { bpm: 138, lead: [79,0,78,79,0,83,0,79, 81,0,79,78,76,0,74,0, 76,0,78,79,0,81,0,83, 84,0,83,81,79,0,0,0], bass: [43,0,50,0,55,0,50,0, 45,0,52,0,57,0,52,0, 47,0,54,0,59,0,54,0, 48,0,55,0,50,0,57,0], chord: [[55,59,62],[57,60,64],[59,62,66],[60,64,67]] },
+    { bpm: 96, lead: [81,0,0,0,79,0,76,0, 74,0,0,0,76,0,0,0, 72,0,0,0,74,0,76,0, 79,0,0,0,76,0,0,0], bass: [45,0,0,0,52,0,0,0, 41,0,0,0,48,0,0,0, 43,0,0,0,50,0,0,0, 40,0,0,0,47,0,0,0], chord: [[69,72,76],[65,69,72],[67,71,74],[64,67,71]] },
+    { bpm: 152, lead: [64,0,64,67,0,64,70,0, 69,0,67,0,64,0,63,0, 64,0,64,67,0,64,70,0, 72,0,71,0,70,0,69,0], bass: [40,40,0,40,40,0,40,0, 41,41,0,41,41,0,41,0, 40,40,0,40,40,0,40,0, 38,38,0,38,39,0,39,0], chord: [[52,55,59],[53,56,60],[52,55,59],[50,53,57]] },
+  ];
+  let on = false, song = 0, step = 0, next = 0, out = null;
+  const f = m => 440 * Math.pow(2, (m - 69) / 12);
+  function note(t, m, d, type, v) { const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f(m);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.01); g.gain.setValueAtTime(v, t + d * 0.6); g.gain.linearRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + d + 0.02); }
+  setInterval(() => {
+    if (!on || !AC) return;
+    const sg = SONGS[song], sd = 60 / sg.bpm / 4;
+    while (next < AC.currentTime + 0.2) {
+      const i = step % 32, L = sg.lead[i], B = sg.bass[i];
+      if (L) note(next, L, sd * 1.7, 'triangle', 0.09);
+      if (L && song !== 3) note(next, L + 12, sd * 0.9, 'square', 0.012);
+      if (B) note(next, B, sd * 1.8, 'triangle', 0.13);
+      if (i % 8 === 0) for (const m of sg.chord[(i / 8) | 0]) note(next, m, sd * 7.5, 'sine', 0.025);
+      if (i % 4 === 0 && song !== 3) { try { const s2 = AC.createBufferSource(), g2 = AC.createGain(), fl = AC.createBiquadFilter(); s2.buffer = NOISE; fl.type = 'highpass'; fl.frequency.value = 6000;
+        g2.gain.setValueAtTime(0.05, next); g2.gain.exponentialRampToValueAtTime(0.001, next + 0.05); s2.connect(fl); fl.connect(g2); g2.connect(out); s2.start(next, Math.random()); s2.stop(next + 0.06); } catch (e) {} }
+      next += sd; step++;
+    }
+  }, 30);
+  return {
+    play(i) { try { ac(); if (!out) { out = AC.createGain(); out.gain.value = 0.8; out.connect(AC.destination); } if (on && song === i) return; song = i; step = 0; next = AC.currentTime + 0.1; on = true; } catch (e) {} },
+    stop() { on = false; },
+  };
+})();
 const SFX = {
   jump: n => tone([330, 400, 500][n], 0.2, 'square', 500 + n * 200, 0.05),
   coin: () => { tone(988, 0.07, 'square', 0, 0.04); setTimeout(() => tone(1319, 0.25, 'square', 0, 0.04), 60); },
@@ -240,51 +277,146 @@ function shadowed(m) { m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.
 
 // ======================= hero (3D plumber) =======================
 function buildHero() {
-  const g = new THREE.Group(), M = (c, r = 0.7, m = 0) => std({ color: c, roughness: r, metalness: m });
-  const red = M(0xb01a14, 0.6), blue = M(0x223e8c, 0.85), skin = M(0xe8a880, 0.65), white = M(0xeeeae0, 0.6), brown = M(0x4a2810, 0.55),
-    dark = M(0x2a160a, 0.9), gold = M(0xd8a830, 0.3, 0.8), eyeB = M(0x2050c0, 0.3);
+  const g = new THREE.Group(), M = c => new THREE.MeshLambertMaterial({ color: c });
+  const red = M(0xd81e1e), redD = M(0xa01010), blue = M(0x2448c8), skin = M(0xf5c296), white = M(0xffffff), brown = M(0x6b3a14),
+    dark = M(0x2a1206), gold = M(0xffd24a), iris = M(0x1f5fe0), black = M(0x000000);
   const add = (geo, mat, x, y, z, parent = g) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
-  const H = { g, legs: [], arms: [] };
+  const sph = (r, a = 18, b = 14) => new THREE.SphereGeometry(r, a, b);
+  const H = { g, legs: [], arms: [], eyes: [] };
+  // legs + big shoes
   for (const s of [-1, 1]) {
-    const leg = new THREE.Group(); leg.position.set(s * 0.17, 0.72, 0); g.add(leg);
-    add(new THREE.CylinderGeometry(0.13, 0.12, 0.5, 10), blue, 0, -0.25, 0, leg);
-    const shoe = add(new THREE.SphereGeometry(0.16, 12, 8), brown, 0, -0.56, 0.07, leg); shoe.scale.set(1, 0.62, 1.55);
-    add(new THREE.BoxGeometry(0.26, 0.04, 0.42), dark, 0, -0.64, 0.07, leg);
+    const leg = new THREE.Group(); leg.position.set(s * 0.15, 0.7, 0); g.add(leg);
+    add(new THREE.CylinderGeometry(0.125, 0.11, 0.36, 14), blue, 0, -0.17, 0, leg);
+    const shoe = add(sph(0.17), brown, 0, -0.43, 0.07, leg); shoe.scale.set(1.05, 0.72, 1.55);
+    const sole = add(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 16), dark, 0, -0.52, 0.07, leg); sole.scale.z = 1.5;
     H.legs.push(leg);
   }
-  add(new THREE.CylinderGeometry(0.3, 0.35, 0.46, 14), blue, 0, 0.94, 0);                  // overalls
-  add(new THREE.CylinderGeometry(0.28, 0.3, 0.3, 14), red, 0, 1.3, 0);                     // shirt
-  add(new THREE.SphereGeometry(0.28, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), red, 0, 1.44, 0).scale.y = 0.5;
-  add(new THREE.BoxGeometry(0.4, 0.26, 0.05), blue, 0, 1.2, 0.27);                         // bib
-  for (const s of [-1, 1]) { const st = add(new THREE.BoxGeometry(0.07, 0.34, 0.06), blue, s * 0.14, 1.34, 0.25); st.rotation.x = -0.2;
-    add(new THREE.SphereGeometry(0.045, 8, 6), gold, s * 0.14, 1.22, 0.3); }
+  // round belly overalls + shirt chest
+  const belly = add(sph(0.37, 22, 16), blue, 0, 0.9, 0); belly.scale.set(1, 0.92, 0.9);
+  const chest = add(sph(0.33, 22, 16), red, 0, 1.2, -0.01); chest.scale.set(1.05, 0.78, 0.88);
+  const bib = add(new THREE.CylinderGeometry(0.34, 0.36, 0.26, 22, 1, true, -0.75, 1.5), blue, 0, 1.13, 0); bib.material = new THREE.MeshLambertMaterial({ color: 0x2448c8, side: THREE.DoubleSide });
   for (const s of [-1, 1]) {
-    const arm = new THREE.Group(); arm.position.set(s * 0.36, 1.38, 0); g.add(arm);
-    add(new THREE.CylinderGeometry(0.085, 0.08, 0.42, 8), red, 0, -0.2, 0, arm);
-    add(new THREE.SphereGeometry(0.12, 10, 8), white, 0, -0.46, 0, arm);
+    const strap = add(new THREE.BoxGeometry(0.075, 0.3, 0.05), blue, s * 0.14, 1.3, 0.25); strap.rotation.x = -0.35; strap.rotation.z = s * 0.08;
+    const back = add(new THREE.BoxGeometry(0.075, 0.3, 0.05), blue, s * 0.14, 1.28, -0.24); back.rotation.x = 0.35;
+    add(sph(0.05, 10, 8), gold, s * 0.13, 1.17, 0.33);
+  }
+  // arms with puffy gloves and cuffs
+  for (const s of [-1, 1]) {
+    const arm = new THREE.Group(); arm.position.set(s * 0.34, 1.33, 0); g.add(arm);
+    add(sph(0.11, 12, 10), red, 0, 0, 0, arm);
+    add(new THREE.CylinderGeometry(0.085, 0.08, 0.28, 12), red, 0, -0.15, 0, arm);
+    const cuff = add(new THREE.TorusGeometry(0.085, 0.035, 8, 14), white, 0, -0.29, 0, arm); cuff.rotation.x = Math.PI / 2;
+    const glove = add(sph(0.13, 14, 12), white, 0, -0.39, 0.01, arm); glove.scale.set(1, 1.05, 0.9);
+    const thumb = add(sph(0.05, 8, 6), white, -s * 0.09, -0.34, 0.06, arm);
     H.arms.push(arm);
   }
-  const head = new THREE.Group(); head.position.y = 1.78; g.add(head); H.head = head;
-  add(new THREE.SphereGeometry(0.3, 18, 14), skin, 0, 0, 0, head);
-  add(new THREE.SphereGeometry(0.11, 10, 8), skin, 0, -0.03, 0.3, head);                  // nose
-  const mus = add(new THREE.BoxGeometry(0.36, 0.08, 0.1), dark, 0, -0.13, 0.26, head); mus.rotation.x = 0.2;
+  // head: big and round
+  const head = new THREE.Group(); head.position.y = 1.72; g.add(head); H.head = head;
+  const skull = add(sph(0.36, 28, 20), skin, 0, 0, 0, head); skull.scale.set(1, 1.03, 0.98);
+  add(sph(0.15, 16, 12), skin, 0, -0.04, 0.35, head);                                   // big nose
   for (const s of [-1, 1]) {
-    const e = add(new THREE.SphereGeometry(0.065, 10, 8), white, s * 0.1, 0.07, 0.25, head); e.scale.set(0.8, 1.3, 0.6);
-    add(new THREE.SphereGeometry(0.035, 8, 6), eyeB, s * 0.1, 0.07, 0.295, head);
-    add(new THREE.SphereGeometry(0.07, 8, 6), skin, s * 0.3, 0, 0, head);
-    const hair = add(new THREE.BoxGeometry(0.08, 0.14, 0.2), dark, s * 0.26, -0.02, -0.08, head); hair.rotation.z = s * 0.2;
+    const mu = add(sph(0.1, 12, 8), dark, s * 0.11, -0.15, 0.3, head); mu.scale.set(1.45, 0.6, 0.7); mu.rotation.z = s * 0.35;   // mustache halves
+    const eyeG = new THREE.Group(); eyeG.position.set(s * 0.115, 0.09, 0.28); head.add(eyeG);
+    const ew = add(sph(0.09, 14, 12), white, 0, 0, 0, eyeG); ew.scale.set(0.72, 1.2, 0.55);
+    add(sph(0.052, 12, 10), iris, 0, -0.01, 0.04, eyeG).scale.z = 0.5;
+    add(sph(0.026, 8, 6), black, 0, -0.01, 0.065, eyeG);
+    add(sph(0.012, 6, 4), white, 0.015, 0.02, 0.075, eyeG);
+    H.eyes.push(eyeG);
+    const brow = add(new THREE.BoxGeometry(0.13, 0.035, 0.03), dark, s * 0.115, 0.23, 0.31, head); brow.rotation.z = -s * 0.18;
+    add(sph(0.085, 10, 8), skin, s * 0.35, 0, -0.02, head);                             // ears
+    const burn = add(new THREE.BoxGeometry(0.06, 0.16, 0.12), dark, s * 0.31, -0.02, 0.08, head); burn.rotation.z = s * 0.15;
   }
-  add(new THREE.SphereGeometry(0.325, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), red, 0, 0.04, 0, head);   // cap
-  const brim = add(new THREE.CylinderGeometry(0.24, 0.26, 0.04, 16, 1, false, -Math.PI / 2, Math.PI), red, 0, 0.06, 0.2, head); brim.scale.z = 1.25;
-  const badge = add(new THREE.CircleGeometry(0.1, 16), white, 0, 0.2, 0.27, head); badge.rotation.x = -0.45;
+  const hair = add(sph(0.3, 16, 10), dark, 0, -0.06, -0.14, head); hair.scale.set(1.12, 0.75, 0.9);
+  // cap
+  const dome = add(new THREE.SphereGeometry(0.375, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), red, 0, 0.07, -0.01, head); dome.scale.set(1, 0.88, 1.02);
+  add(new THREE.CylinderGeometry(0.372, 0.375, 0.09, 28), redD, 0, 0.08, -0.01, head);
+  const brim = add(new THREE.CylinderGeometry(0.31, 0.33, 0.045, 24, 1, false, -Math.PI / 2, Math.PI), red, 0, 0.075, 0.2, head); brim.scale.set(1, 1, 1.35); brim.rotation.x = 0.12;
   const bd = document.createElement('canvas'); bd.width = bd.height = 64; const bg = bd.getContext('2d');
-  bg.fillStyle = '#eeeae0'; bg.fillRect(0, 0, 64, 64); bg.fillStyle = '#b01a14'; bg.font = 'bold 48px Impact,sans-serif'; bg.textAlign = 'center'; bg.fillText('P', 32, 50);
-  const bt = new THREE.CanvasTexture(bd); bt.colorSpace = THREE.SRGBColorSpace; badge.material = std({ map: bt, roughness: 0.6 });
+  bg.fillStyle = '#fff'; bg.beginPath(); bg.arc(32, 32, 30, 0, 7); bg.fill(); bg.fillStyle = '#d81e1e'; bg.font = 'bold 44px Impact,sans-serif'; bg.textAlign = 'center'; bg.fillText('P', 32, 48);
+  const bt = new THREE.CanvasTexture(bd); bt.colorSpace = THREE.SRGBColorSpace;
+  const badge = add(new THREE.CircleGeometry(0.12, 20), new THREE.MeshBasicMaterial({ map: bt, transparent: true }), 0, 0.24, 0.335, head); badge.rotation.x = -0.5;
   shadowed(g);
   return H;
 }
 
-// ======================= alien trooper enemy =======================
+const BOSSES = [
+  { name: 'KING GLOB', col: 0x8a4a20, col2: 0xd09060, crown: 0xffd020, speed: 1 },
+  { name: 'MAGMA BRUTE', col: 0x402020, col2: 0xff6020, crown: 0xff3000, speed: 1.15 },
+  { name: 'FROST TITAN', col: 0x3050c0, col2: 0xc0e0ff, crown: 0xe0ffff, speed: 1.25 },
+  { name: 'NEBULA WARLORD', col: 0x208050, col2: 0xa0ffc0, crown: 0xff40ff, speed: 1.4 },
+];
+let boss = null, shock = [];
+const areaSong = () => P.hub ? 0 : [2, 1, 0, 3][levelIdx % 4];
+function spawnBoss(arena) {
+  const def = BOSSES[levelIdx % BOSSES.length];
+  const a = buildAlien({ enemy: [def.col, def.col2], eye: 0xffffff });
+  const g = a.g; g.scale.setScalar(2.8);
+  // crown + angry brows
+  const crownM = new THREE.MeshLambertMaterial({ color: def.crown, emissive: new THREE.Color(def.crown).multiplyScalar(0.25) });
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.14, 10, 1, true), crownM); crown.material.side = THREE.DoubleSide; crown.position.set(0, 1.75, 0.03); g.add(crown);
+  for (let k = 0; k < 5; k++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 5), crownM); const an = k / 5 * Math.PI * 2; sp.position.set(Math.sin(an) * 0.22, 1.88, 0.03 + Math.cos(an) * 0.22); g.add(sp); }
+  const stars = new THREE.Group(); stars.position.y = 2.1; stars.visible = false; g.add(stars);
+  for (let k = 0; k < 3; k++) { const st = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), new THREE.MeshBasicMaterial({ color: 0xffff60 })); st.position.set(Math.cos(k * 2.1) * 0.3, 0, Math.sin(k * 2.1) * 0.3); stars.add(st); }
+  level.add(g);
+  const c = new V3((arena.min.x + arena.max.x) / 2, arena.max.y, (arena.min.z + arena.max.z) / 2 + 3);
+  boss = { def, a, g, stars, pos: c.clone(), home: c.clone(), arena, hp: 3, maxHp: 3, st: 'intro', t: 1.5, vy: 0, dir: new V3(0, 0, -1), inv: 0, walk: 0, face: Math.PI };
+  $('bossname').textContent = def.name; $('bossbar').style.display = 'none';
+}
+function updateBoss(dt) {
+  const b = boss; if (!b) return;
+  const pl = player, sp = b.def.speed * (1 + (b.maxHp - b.hp) * 0.25);
+  const inArena = pl.pos.x > b.arena.min.x - 1 && pl.pos.x < b.arena.max.x + 1 && pl.pos.z > b.arena.min.z - 1 && pl.pos.z < b.arena.max.z + 1 && pl.pos.y > b.arena.max.y - 2;
+  if (b.st !== 'dead') $('bossbar').style.display = inArena ? 'block' : 'none';
+  if (inArena && !b.met) { b.met = true; centerMsg(b.def.name, 'STOMP IT 3 TIMES!'); music.play(4); }
+  $('bosshp').innerHTML = `<i style="width:${b.hp / b.maxHp * 100}%"></i>`;
+  b.t -= dt; b.inv -= dt;
+  const toP = new V3(pl.pos.x - b.pos.x, 0, pl.pos.z - b.pos.z), dist = toP.length(); if (dist > 0.01) toP.divideScalar(dist);
+  const clampArena = () => { b.pos.x = clamp(b.pos.x, b.arena.min.x + 1.6, b.arena.max.x - 1.6); b.pos.z = clamp(b.pos.z, b.arena.min.z + 1.6, b.arena.max.z - 1.6); };
+  let moving = false;
+  if (b.st === 'intro') { if (b.t <= 0 && inArena) { b.st = 'walk'; b.t = 2; } }
+  else if (b.st === 'walk') {
+    if (!inArena) { b.t = 1; } else { b.pos.addScaledVector(toP, 2.4 * sp * dt); moving = true; b.face = Math.atan2(toP.x, toP.z); }
+    clampArena();
+    if (b.t <= 0) { if (dist > 5 && Math.random() < 0.6) { b.st = 'windup'; b.t = 0.7; b.dir.copy(toP); } else { b.st = 'jump'; b.vy = 14; b.t = 5; SFX.jump(0); } }
+  } else if (b.st === 'windup') { b.g.rotation.z = Math.sin(b.t * 60) * 0.06; if (b.t <= 0) { b.st = 'charge'; b.t = 1.1; b.g.rotation.z = 0; SFX.stomp(); } }
+  else if (b.st === 'charge') {
+    b.pos.addScaledVector(b.dir, 13 * sp * dt); moving = true; b.walk += dt * 10; b.face = Math.atan2(b.dir.x, b.dir.z);
+    const before = b.pos.clone(); clampArena();
+    if (before.distanceTo(b.pos) > 0.01) { b.st = 'stun'; b.t = 2.2; shake = 0.4; SFX.pound(); dust(b.pos.clone().setY(b.pos.y + 1), 12); }
+    else if (b.t <= 0) { b.st = 'walk'; b.t = 1.5; }
+  } else if (b.st === 'jump') {
+    b.vy -= 34 * P.grav * dt; b.pos.y += b.vy * dt;
+    if (b.pos.y <= b.home.y && b.vy < 0) { b.pos.y = b.home.y; b.st = 'walk'; b.t = 1.8; SFX.pound(); shake = 0.6; dust(b.pos, 16);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.18, 6, 32), new THREE.MeshBasicMaterial({ color: 0xffe080, transparent: true, opacity: 0.9 }));
+      ring.rotation.x = Math.PI / 2; ring.position.copy(b.pos).setY(b.pos.y + 0.25); level.add(ring); shock.push({ m: ring, r: 1, hit: false }); }
+  } else if (b.st === 'stun') { b.stars.visible = true; b.stars.rotation.y += dt * 6; if (b.t <= 0) { b.st = 'walk'; b.t = 1.5; b.stars.visible = false; } }
+  else if (b.st === 'dead') {
+    b.g.rotation.y += dt * 12; b.g.scale.multiplyScalar(1 - dt * 1.5); b.pos.y += dt * 2;
+    if (b.t <= 0) { level.remove(b.g); const fin = flags.find(f => f.final); fin.locked = false; fin.g.visible = true; fin.g.position.y = fin.y + 12; fin.drop = true;
+      centerMsg('A POWER STAR APPEARED!', ''); SFX.oneup(); boss = null; music.play(areaSong()); return; }
+  }
+  // shockwaves: jump over them!
+  shock = shock.filter(w => { w.r += dt * 11; w.m.scale.setScalar(w.r); w.m.material.opacity = Math.max(0, 1 - w.r / 13);
+    if (!w.hit && pl.onG && Math.abs(Math.hypot(pl.pos.x - w.m.position.x, pl.pos.z - w.m.position.z) - w.r) < 0.7 && Math.abs(pl.pos.y - w.m.position.y) < 1 && pl.inv <= 0) { w.hit = true; hurt(); pl.vel.y = 8; }
+    if (w.r > 13) { level.remove(w.m); return false; } return true; });
+  // contact: stomp or get hurt
+  if (b.st !== 'dead' && b.st !== 'intro') {
+    const hd = Math.hypot(pl.pos.x - b.pos.x, pl.pos.z - b.pos.z);
+    if (hd < 1.9 && pl.pos.y < b.pos.y + 5.2 && pl.pos.y + HH > b.pos.y) {
+      if (pl.vel.y < 0 && pl.pos.y > b.pos.y + 3.6 && b.inv <= 0) {
+        b.hp--; b.inv = 1; pl.vel.y = 16; pl.pound = 0; SFX.stomp(); shake = 0.4; dust(pl.pos, 10, b.def.col2); score += 1000;
+        if (b.hp <= 0) { b.st = 'dead'; b.t = 1.4; $('bossbar').style.display = 'none'; pop(b.def.name + ' DEFEATED!'); SFX.flag(); }
+        else { b.st = 'walk'; b.t = 1.2; b.stars.visible = false; pop(['', 'ONE MORE!', 'NICE!'][b.hp] || 'HIT!'); }
+      } else if (pl.inv <= 0) { hurt(); const l = hd || 1; pl.vel.x = (pl.pos.x - b.pos.x) / l * 12; pl.vel.z = (pl.pos.z - b.pos.z) / l * 12; pl.vel.y = 8; }
+    }
+  }
+  if (moving) b.walk += dt * 6 * sp;
+  b.a.legs[0].rotation.x = Math.sin(b.walk) * 0.6; b.a.legs[1].rotation.x = -Math.sin(b.walk) * 0.6;
+  b.g.position.set(b.pos.x, b.pos.y + (moving ? Math.abs(Math.sin(b.walk)) * 0.2 : 0), b.pos.z);
+  if (b.st !== 'dead') b.g.rotation.y = lerpAngle(b.g.rotation.y, b.face, Math.min(1, dt * 8));
+  b.g.visible = !(b.inv > 0 && Math.floor(b.inv * 14) % 2 === 0 && b.st !== 'dead');
+}
+
 function buildAlien(P) {
   const g = new THREE.Group(), body = std({ color: P.enemy[0], roughness: 0.6 }), light = std({ color: P.enemy[1], roughness: 0.5 }),
     armor = std({ color: 0x3a3c40, roughness: 0.45, metalness: 0.6 }), eye = new THREE.MeshBasicMaterial({ color: P.eye });
@@ -327,6 +459,7 @@ blob.rotation.x = -Math.PI / 2; scene.add(blob);
 
 // ======================= level building =======================
 function clearLevel() {
+  boss = null; shock = []; $('bossbar').style.display = 'none';
   if (level) { scene.remove(level); level.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   Object.values(TX || {}).forEach(t => t.dispose && t.dispose());
   parts.forEach(p => scene.remove(p.m));
@@ -466,9 +599,11 @@ function buildLevel() {
   heading = clamp(heading, -0.4, 0.4);
   const fd = Math.max(prev.w, prev.d) / 2 + 4 + 6;
   const fx = prev.x + Math.sin(heading) * fd, fz = prev.z + Math.cos(heading) * fd;
-  island(fx, prev.y, fz, 12, 12, 4);
+  const arena = island(fx, prev.y, fz + 3, 17, 17, 4);
   for (let k = 0; k < 5; k++) addCoin(fx - 3 + k * 1.5, prev.y + 1, fz - 3);
-  addFlag(fx, prev.y, fz + 2, true);
+  addFlag(fx, prev.y, fz + 3, true);
+  const fin = flags[flags.length - 1]; fin.locked = true; fin.g.visible = false;
+  spawnBoss(arena);
   // player spawn
   player.spawn.set(0, 0, -2);
   respawn(true);
@@ -799,13 +934,14 @@ function updatePlayer(dt) {
   for (const f of flags) {
     const d = Math.hypot(pl.pos.x - f.x, pl.pos.z - f.z);
     if (!f.final && !f.hit && d < 1.6 && Math.abs(pl.pos.y - f.y) < 3) { f.hit = true; player.spawn.set(f.x, f.y + 0.1, f.z); f.g.userData.cloth.material.color.set(0xb02010); SFX.flag(); centerMsg('CHECKPOINT', ''); }
-    if (f.final && d < 1.8 && pl.pos.y - f.y < 4 && pl.pos.y - f.y > -1) return extract();
+    if (f.final && !f.locked && d < 1.8 && pl.pos.y - f.y < 4 && pl.pos.y - f.y > -1) return extract();
   }
 }
 function hurt() { player.hp -= 2; player.inv = 1.6; SFX.hurt(); $('hurt').style.opacity = 0.9; shake = 0.3; if (player.hp <= 0) die(false); }
 let shake = 0;
 function updateHeroModel(dt) {
   const pl = player, H = hero, spd = Math.hypot(pl.vel.x, pl.vel.z);
+  const bl = (performance.now() / 1000) % 3.7 < 0.12 || pl.inv > 1.3; H.eyes.forEach(e => e.scale.y = bl ? 0.12 : 1);
   H.g.position.copy(pl.pos); H.g.rotation.y = pl.facing;
   pl.squash += (0 - pl.squash) * Math.min(1, dt * 10);
   H.g.scale.set(1 + pl.squash * 0.5, 1 - pl.squash, 1 + pl.squash * 0.5);
@@ -910,7 +1046,7 @@ function titleMenu() {
   bindSens(); $('go').onclick = () => { ac(); score = 0; coinCount = 0; lives = 4; levelIdx = -1; startLevel(); };
   if ($('reset')) $('reset').onclick = () => { starsGot.length = 0; saveStars(); titleMenu(); };
 }
-function startLevel() { buildLevel(); hideMenu(); state = 'play'; lockPointer(); centerMsg(P.name, P.hub ? `POWER STARS ${starCount()} / ${PLANETS.length}` : P.tip); last = performance.now(); }
+function startLevel() { buildLevel(); hideMenu(); state = 'play'; music.play(areaSong()); lockPointer(); centerMsg(P.name, P.hub ? `POWER STARS ${starCount()} / ${PLANETS.length}` : P.tip); last = performance.now(); }
 function pause() {
   if (state !== 'play') return; state = 'pause';
   showMenu(`<h1>PAUSED</h1><h2>${P.name} - \u2605 ${starCount()}</h2>${controlsHtml}<button id="rs">RESUME</button>${P.hub ? '' : '<button id="ex">EXIT COURSE</button>'}<button id="qt">QUIT</button>${sensHtml()}`);
@@ -918,6 +1054,7 @@ function pause() {
 }
 function die(fell) {
   if (state !== 'play') return;
+  if (boss && boss.st !== 'dead') { boss.hp = boss.maxHp; boss.pos.copy(boss.home); boss.st = 'intro'; boss.t = 1.5; boss.met = false; }
   state = 'dying'; lives--; SFX.die(); dieT = 1.6;
   if (!fell) player.vel.set(0, 10, 0);
 }
@@ -927,14 +1064,14 @@ function afterDeath() {
   else showMenu(`<h1>GAME OVER</h1><h2>SCORE ${score} - COINS ${coinCount}</h2><button id="ag">MAIN MENU</button>`), $('ag').onclick = titleMenu, state = 'over';
 }
 function extract() {
-  state = 'warp'; score += 1000; SFX.oneup();
+  music.stop(); state = 'warp'; score += 1000; SFX.oneup();
   const first = !starsGot[levelIdx]; starsGot[levelIdx] = true; saveStars();
   showMenu(`<h1 style="color:#ffd020;font-size:clamp(40px,9vw,90px)">STAR GET!</h1><h2>${P.name}${first ? '' : ' (ALREADY COLLECTED)'}</h2>
     <p>POWER STARS: ${starCount()} / ${PLANETS.length} &nbsp;|&nbsp; SCORE ${score}</p><button id="nx">BACK TO THE CASTLE</button>`);
   $('nx').onclick = () => { levelIdx = -1; startLevel(); };
 }
 function ending() {
-  state = 'warp'; SFX.flag(); SFX.oneup();
+  music.stop(); state = 'warp'; SFX.flag(); SFX.oneup();
   showMenu(`<h1 style="color:#ffd020">THE BIG DOOR OPENS!</h1><h2>YOU COLLECTED EVERY POWER STAR</h2><p>THANKS FOR PLAYING STAR HOPPER 64 &nbsp;|&nbsp; FINAL SCORE ${score}</p>
     <button id="nx">PLAY AGAIN</button>`);
   $('nx').onclick = () => { starsGot.length = 0; saveStars(); titleMenu(); };
@@ -945,7 +1082,8 @@ let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = clamp((now - last) / 1000, 0, 0.033); last = Math.max(last, now); const t = now / 1000;
-  if (state === 'play') { updatePlayer(dt); updateHud(dt); }
+  if (state === 'play') { updatePlayer(dt); if (state === 'play') updateBoss(dt); updateHud(dt);
+    for (const f of flags) if (f.drop) { f.g.position.y = Math.max(f.y, f.g.position.y - dt * 8); if (f.g.position.y <= f.y) f.drop = false; } }
   else if (state === 'dying') {
     player.vel.y -= 30 * dt; player.pos.y += player.vel.y * dt; dieT -= dt; if (dieT <= 0) afterDeath(); updateHud(dt);
   } else if (state === 'menu') {
