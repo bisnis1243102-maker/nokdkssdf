@@ -1,0 +1,30 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.planethopper.game'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.planethopper.game"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // The game itself lives in the repo-root index.html; it is copied into the APK assets at build time.
+    sourceSets.main.assets.srcDirs += "$buildDir/gameAssets"
+}
+
+tasks.register('copyGame', Copy) {
+    from "$rootDir/../index.html"
+    into "$buildDir/gameAssets"
+}
+preBuild.dependsOn 'copyGame'
