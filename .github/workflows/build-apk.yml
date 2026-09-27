@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'index.html'
+      - 'three.min.js'
       - 'android/**'
       - '.github/workflows/build-apk.yml'
   workflow_dispatch:

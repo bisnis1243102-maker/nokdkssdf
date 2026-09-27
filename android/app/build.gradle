@@ -19,12 +19,14 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    // The game itself lives in the repo-root index.html; it is copied into the APK assets at build time.
+    // The game lives in the repo-root index.html (+ three.min.js); it is copied into the APK assets at build time.
     sourceSets.main.assets.srcDirs += "$buildDir/gameAssets"
 }
 
 tasks.register('copyGame', Copy) {
-    from "$rootDir/../index.html"
+    from("$rootDir/..") {
+        include 'index.html', 'three.min.js'
+    }
     into "$buildDir/gameAssets"
 }
 preBuild.dependsOn 'copyGame'
