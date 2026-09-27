@@ -562,9 +562,11 @@ function touchEnd(e) { for (const t of e.changedTouches) {
   if (btnTouch[t.identifier]) { setBtn(btnTouch[t.identifier], false); delete btnTouch[t.identifier]; } } }
 addEventListener('touchend', touchEnd); addEventListener('touchcancel', touchEnd);
 // gamepad
-let padPrev = {};
+let padPrev = {}, padBlocked = false;
 function pollPad() {
-  const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(g => g) : null; if (!gp) return null;
+  let gp = null;
+  if (!padBlocked) try { gp = navigator.getGamepads ? [...navigator.getGamepads()].find(g => g) : null; } catch (e) { padBlocked = true; }   // gamepads can be disallowed by the page's permissions policy
+  if (!gp) return null;
   const dz = v => Math.abs(v) < 0.15 ? 0 : v, b = i => gp.buttons[i] && gp.buttons[i].pressed;
   const out = { mx: dz(gp.axes[0]), my: dz(gp.axes[1]), lx: dz(gp.axes[2] || 0), ly: dz(gp.axes[3] || 0), jump: b(0), pound: b(1) || b(6), start: b(9) };
   if (out.jump && !padPrev.jump) input.jumpPress = true;
