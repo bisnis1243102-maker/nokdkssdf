@@ -53,3 +53,27 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.beatbattle.game
+  RetroHopper:
+    templates: [WebGame]
+    templateAttributes:
+      display_name: Retro Hopper
+    sources:
+      - path: Icons/RetroHopper.xcassets
+      - path: Web/RetroHopper/www
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.retrohopper.game
+  StarHopper64:
+    templates: [WebGame]
+    templateAttributes:
+      display_name: Star Hopper 64
+    sources:
+      - path: Icons/StarHopper64.xcassets
+      - path: Web/StarHopper64/www
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.starhopper64.game

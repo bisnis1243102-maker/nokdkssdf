@@ -6,6 +6,8 @@ on:
       - 'index.html'
       - 'three.min.js'
       - 'beatbattle/**'
+      - 'retro/**'
+      - 'star64/**'
       - 'android/**'
       - '.github/workflows/build-apk.yml'
   workflow_dispatch:

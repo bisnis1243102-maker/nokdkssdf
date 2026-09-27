@@ -32,9 +32,21 @@ android {
             applicationId "com.beatbattle.game"
             resValue "string", "app_name", "Beat Battle"
         }
+        retro {
+            dimension "game"
+            applicationId "com.retrohopper.game"
+            resValue "string", "app_name", "Retro Hopper"
+        }
+        star {
+            dimension "game"
+            applicationId "com.starhopper64.game"
+            resValue "string", "app_name", "Star Hopper 64"
+        }
     }
     sourceSets.planet.assets.srcDirs += "$buildDir/gameAssets/planet"
     sourceSets.beat.assets.srcDirs += "$buildDir/gameAssets/beat"
+    sourceSets.retro.assets.srcDirs += "$buildDir/gameAssets/retro"
+    sourceSets.star.assets.srcDirs += "$buildDir/gameAssets/star"
 }
 
 tasks.register('copyPlanet', Copy) {
@@ -47,5 +59,15 @@ tasks.register('copyBeat', Copy) {
     from "$rootDir/../beatbattle/index.html"
     into "$buildDir/gameAssets/beat"
 }
-preBuild.dependsOn 'copyPlanet', 'copyBeat'
+tasks.register('copyRetro', Copy) {
+    from "$rootDir/../retro/index.html"
+    into "$buildDir/gameAssets/retro"
+}
+tasks.register('copyStar', Copy) {
+    from("$rootDir/../star64") {
+        include 'index.html', 'three.min.js'
+    }
+    into "$buildDir/gameAssets/star"
+}
+preBuild.dependsOn 'copyPlanet', 'copyBeat', 'copyRetro', 'copyStar'
 

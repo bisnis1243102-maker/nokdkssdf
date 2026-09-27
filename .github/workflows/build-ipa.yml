@@ -9,6 +9,8 @@ on:
       - 'index.html'
       - 'three.min.js'
       - 'beatbattle/**'
+      - 'retro/**'
+      - 'star64/**'
       - 'ios/**'
       - '.github/workflows/build-ipa.yml'
   workflow_dispatch:
@@ -22,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [PlanetHopper, BeatBattle]
+        app: [PlanetHopper, BeatBattle, RetroHopper, StarHopper64]
     steps:
       - uses: actions/checkout@v4
 
