@@ -1,0 +1,4 @@
+Web/
+Generated/
+*.xcodeproj/
+build/

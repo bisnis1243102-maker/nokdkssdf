@@ -1,0 +1,82 @@
+name: Build IPA (unsigned)
+
+# Builds UNSIGNED .ipa files for both games. Sign/install them with a sideloading
+# tool (KSign, Sideloadly, AltStore) using your own Apple ID.
+
+on:
+  push:
+    paths:
+      - 'index.html'
+      - 'three.min.js'
+      - 'beatbattle/**'
+      - 'ios/**'
+      - '.github/workflows/build-ipa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [PlanetHopper, BeatBattle]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: |
+          ./sync-web.sh
+          xcodegen generate
+
+      - name: Build ${{ matrix.app }} (no code signing)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Games.xcodeproj \
+            -scheme "${{ matrix.app }}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Package .ipa
+        run: |
+          APP="ios/build/Build/Products/Release-iphoneos/${{ matrix.app }}.app"
+          test -d "$APP" || { echo "missing $APP"; find ios/build -name '*.app' -type d; exit 1; }
+          test -f "$APP/www/index.html" || { echo "web files missing in bundle"; exit 1; }
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          zip -qry "${{ matrix.app }}-unsigned.ipa" Payload
+          ls -lh "${{ matrix.app }}-unsigned.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-unsigned-ipa
+          path: ${{ matrix.app }}-unsigned.ipa
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ipas
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest iOS builds (unsigned)
+          body: |
+            Unsigned `.ipa` files for Planet Hopper and Beat Battle, rebuilt on every push.
+            Download one, then sign & install it with KSign / Sideloadly / AltStore.
+          files: ipas/**/*.ipa
+          fail_on_unmatched_files: true
